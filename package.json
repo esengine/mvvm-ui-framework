@@ -1,0 +1,63 @@
+{
+    "name": "@esengine/mvvm-ui-framework",
+    "version": "1.0.0",
+    "description": "通用UI数据管理框架，支持MVVM模式，可与任何UI库集成",
+    "main": "dist/index.js",
+    "module": "dist/index.esm.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "clean": "rimraf bin dist",
+        "build:ts": "tsc",
+        "build:rollup": "rollup -c",
+        "prebuild": "npm run clean",
+        "build": "npm run build:ts && npm run build:rollup",
+        "build:watch": "tsc --watch",
+        "rebuild": "npm run clean && npm run build",
+        "build:npm": "npm run build && node scripts/build-rollup.js",
+        "preversion": "npm run rebuild",
+        "publish:patch": "npm version patch && npm run build:npm && cd dist && npm publish",
+        "publish:minor": "npm version minor && npm run build:npm && cd dist && npm publish",
+        "publish:major": "npm version major && npm run build:npm && cd dist && npm publish"
+    },
+    "keywords": [
+        "ui",
+        "mvvm",
+        "data-binding",
+        "ui-manager",
+        "cocos",
+        "fgui",
+        "typescript",
+        "decorators",
+        "reflect-metadata"
+    ],
+    "author": "esengine",
+    "license": "MIT",
+    "dependencies": {
+        "reflect-metadata": "^0.1.13"
+    },
+    "devDependencies": {
+        "@rollup/plugin-commonjs": "^28.0.3",
+        "@rollup/plugin-node-resolve": "^16.0.1",
+        "@rollup/plugin-terser": "^0.4.4",
+        "@types/node": "^20.19.0",
+        "rimraf": "^5.0.0",
+        "rollup": "^4.42.0",
+        "rollup-plugin-dts": "^6.2.1",
+        "typescript": "^5.8.3"
+    },
+    "peerDependencies": {
+        "@esengine/ecs-framework": "^2.1.0"
+    },
+    "files": [
+        "dist/**/*",
+        "README.md",
+        "LICENSE"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/esengine/mvvm-ui-framework"
+    }
+} 
