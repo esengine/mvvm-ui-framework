@@ -17,13 +17,13 @@
 ### 安装
 
 ```bash
-npm install @esengine/ui-framework
+npm install @esengine/mvvm-ui-framework
 ```
 
 ### 基础使用
 
 ```typescript
-import { ViewModel, observable, computed, command, viewModel } from '@esengine/ui-framework';
+import { ViewModel, observable, computed, command, viewModel } from '@esengine/mvvm-ui-framework';
 
 @viewModel
 class UserViewModel extends ViewModel {
@@ -50,7 +50,7 @@ class UserViewModel extends ViewModel {
 ### 数据绑定
 
 ```typescript
-import { DataBinding, BindingType, BindingMode } from '@esengine/ui-framework';
+import { DataBinding, BindingType, BindingMode } from '@esengine/mvvm-ui-framework';
 
 const viewModel = new UserViewModel();
 const uiElement = { textContent: '' };
@@ -224,7 +224,7 @@ dataBinding.bind(viewModel, uiElement, {
 完整的UI生命周期管理：
 
 ```typescript
-import { UIManager, UIConfig, UILayer } from '@esengine/ui-framework';
+import { UIManager, UIConfig, UILayer } from '@esengine/mvvm-ui-framework';
 
 // 注册UI配置
 const uiManager = UIManager.getInstance();
@@ -272,7 +272,7 @@ dataBinding.bind(viewModel, uiElement, {
 
 ```typescript
 import { cc } from 'cc';
-import { IUILoader, UIConfig } from '@esengine/ui-framework';
+import { IUILoader, UIConfig } from '@esengine/mvvm-ui-framework';
 
 class CocosUILoader implements IUILoader {
     async loadUI(config: UIConfig): Promise<cc.Node> {
@@ -304,7 +304,7 @@ uiManager.setLoader(new CocosUILoader());
 
 ```typescript
 import * as fgui from 'fairygui-cc';
-import { IUILoader, UIConfig } from '@esengine/ui-framework';
+import { IUILoader, UIConfig } from '@esengine/mvvm-ui-framework';
 
 class FGUILoader implements IUILoader {
     async loadUI(config: UIConfig): Promise<fgui.GComponent> {
