@@ -2,9 +2,13 @@
     "name": "@esengine/mvvm-ui-framework",
     "version": "1.0.1",
     "description": "通用UI数据管理框架，支持MVVM模式，可与任何UI库集成",
-    "main": "dist/index.js",
-    "module": "dist/index.esm.js",
-    "types": "dist/index.d.ts",
+    "main": "bin/index.js",
+    "types": "bin/index.d.ts",
+    "files": [
+        "bin/**/*",
+        "README.md",
+        "LICENSE"
+    ],
     "scripts": {
         "clean": "rimraf bin dist",
         "build:ts": "tsc",
@@ -17,7 +21,8 @@
         "preversion": "npm run rebuild",
         "publish:patch": "npm version patch && npm run build:npm && cd dist && npm publish",
         "publish:minor": "npm version minor && npm run build:npm && cd dist && npm publish",
-        "publish:major": "npm version major && npm run build:npm && cd dist && npm publish"
+        "publish:major": "npm version major && npm run build:npm && cd dist && npm publish",
+        "publish:npm": "npm run build:npm && cd dist && npm publish"
     },
     "keywords": [
         "ui",
@@ -45,14 +50,6 @@
         "rollup-plugin-dts": "^6.2.1",
         "typescript": "^5.8.3"
     },
-    "peerDependencies": {
-        "@esengine/ecs-framework": "^2.1.0"
-    },
-    "files": [
-        "dist/**/*",
-        "README.md",
-        "LICENSE"
-    ],
     "publishConfig": {
         "access": "public"
     },

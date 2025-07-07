@@ -6,11 +6,11 @@ import dts from 'rollup-plugin-dts';
 const isProduction = process.env.NODE_ENV === 'production';
 
 export default [
-    // ES模块构建
+    // ES模块构建 (.mjs)
     {
         input: 'bin/index.js',
         output: {
-            file: 'dist/index.esm.js',
+            file: 'dist/index.mjs',
             format: 'es',
             sourcemap: !isProduction
         },
@@ -24,36 +24,14 @@ export default [
             ...(isProduction ? [terser()] : [])
         ]
     },
-    // CommonJS构建
+    // CommonJS构建 (.cjs)
     {
         input: 'bin/index.js',
         output: {
-            file: 'dist/index.js',
+            file: 'dist/index.cjs',
             format: 'cjs',
             sourcemap: !isProduction,
             exports: 'named'
-        },
-        external: ['reflect-metadata'],
-        plugins: [
-            resolve({
-                browser: true,
-                preferBuiltins: false
-            }),
-            commonjs(),
-            ...(isProduction ? [terser()] : [])
-        ]
-    },
-    // UMD构建
-    {
-        input: 'bin/index.js',
-        output: {
-            file: 'dist/index.umd.js',
-            format: 'umd',
-            name: 'UIFramework',
-            sourcemap: !isProduction,
-            globals: {
-                'reflect-metadata': 'Reflect'
-            }
         },
         external: ['reflect-metadata'],
         plugins: [
