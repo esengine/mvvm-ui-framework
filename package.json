@@ -1,6 +1,6 @@
 {
     "name": "@esengine/mvvm-ui-framework",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "通用UI数据管理框架，支持MVVM模式，可与任何UI库集成",
     "main": "bin/index.js",
     "types": "bin/index.d.ts",
