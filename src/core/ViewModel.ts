@@ -81,9 +81,6 @@ export abstract class ViewModel extends Observable {
     constructor() {
         super();
         
-        // 初始化装饰器功能
-        DecoratorUtils.initializeDecorators(this);
-        
         // 调用子类的初始化方法
         this.onInitialize();
     }

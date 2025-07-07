@@ -14,15 +14,14 @@ const READONLY_KEY = Symbol('readonly');
  */
 export function observable(target: any, propertyKey: string): void {
     const privateKey = `_${propertyKey}`;
-    const descriptorKey = `_descriptor_${propertyKey}`;
     
     // 存储元数据
     const observableProps = Reflect.getMetadata(OBSERVABLE_KEY, target) || [];
     observableProps.push(propertyKey);
     Reflect.defineMetadata(OBSERVABLE_KEY, observableProps, target);
     
-    // 创建属性描述符
-    const descriptor = {
+    // 定义getter和setter
+    Object.defineProperty(target, propertyKey, {
         get: function(this: any) {
             return this[privateKey];
         },
@@ -42,13 +41,7 @@ export function observable(target: any, propertyKey: string): void {
         },
         enumerable: true,
         configurable: true
-    };
-    
-    // 存储描述符以便后续使用
-    target[descriptorKey] = descriptor;
-    
-    // 定义getter和setter
-    Object.defineProperty(target, propertyKey, descriptor);
+    });
 }
 
 /**
@@ -268,6 +261,21 @@ export function readonly(target: any, propertyKey: string): void {
 }
 
 /**
+ * ViewModel 类装饰器
+ * 自动初始化装饰器功能
+ */
+export function viewModel<T extends { new(...args: any[]): any }>(constructor: T) {
+    return class extends constructor {
+        constructor(...args: any[]) {
+            super(...args);
+            
+            // 自动初始化装饰器功能
+            DecoratorUtils.initializeDecorators(this);
+        }
+    };
+}
+
+/**
  * 装饰器工具类
  * 提供获取元数据的辅助方法
  */
@@ -331,23 +339,17 @@ export class DecoratorUtils {
         const observableProps = this.getObservableProperties(instance.constructor.prototype);
         
         for (const propertyKey of observableProps) {
-            const descriptorKey = `_descriptor_${propertyKey}`;
             const privateKey = `_${propertyKey}`;
             
-            // 获取当前值（可能是 TypeScript 初始化的值）
-            const currentValue = instance[propertyKey];
-            
-            // 获取存储的描述符
-            const descriptor = instance.constructor.prototype[descriptorKey];
-            
-            if (descriptor) {
-                // 如果有当前值，先存储到私有属性
-                if (currentValue !== undefined) {
-                    instance[privateKey] = currentValue;
-                }
+            // 检查实例上是否有直接的属性值（TypeScript 初始化的）
+            if (instance.hasOwnProperty(propertyKey)) {
+                const currentValue = instance[propertyKey];
                 
-                // 重新定义属性为 getter/setter
-                Object.defineProperty(instance, propertyKey, descriptor);
+                // 删除实例上的直接属性，让原型上的 getter/setter 生效
+                delete instance[propertyKey];
+                
+                // 将值存储到私有属性
+                instance[privateKey] = currentValue;
                 
                 console.log(`重新应用可观察属性: ${propertyKey}, 初始值: ${currentValue}`);
             }
