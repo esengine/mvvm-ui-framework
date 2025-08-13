@@ -451,7 +451,7 @@ describe('MVVM框架集成测试', () => {
                 viewModel.executeCommand('nonExistentCommand', 'param');
             }).not.toThrow();
 
-            // 绑定到null对象
+            // 绑定到null对象应该抛出异常
             expect(() => {
                 dataBinding.bind(viewModel, null as any, {
                     type: BindingType.ONE_WAY,
@@ -459,7 +459,7 @@ describe('MVVM框架集成测试', () => {
                     source: 'firstName',
                     target: 'textContent'
                 });
-            }).not.toThrow();
+            }).toThrow();
 
             // 解除不存在的绑定
             expect(() => {

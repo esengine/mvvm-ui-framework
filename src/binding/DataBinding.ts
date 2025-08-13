@@ -1,5 +1,15 @@
 import { IObservable, Observer } from '../core/IObservable';
 import { ViewModel } from '../core/ViewModel';
+import {
+    ObservableKeys,
+    WritableKeys,
+    SafeBindingConfig,
+    SafeBindingResult,
+    ConverterName,
+    ITypeSafeBindingBuilder
+} from './TypeSafeBinding';
+import { BindingBuilderFactory, QuickBinding, BatchBindingManager } from './FluentBindingBuilder';
+import { converterRegistry, ConverterRegistry } from './ConverterRegistry';
 
 /**
  * 绑定类型
@@ -121,6 +131,12 @@ export class DataBinding {
     
     /** 正在更新的绑定集合（防止循环更新） */
     private _updatingBindings: Set<string> = new Set();
+    
+    /** Fluent API 构建器工厂 */
+    private _builderFactory: BindingBuilderFactory;
+    
+    /** 快捷绑定工具 */
+    private _quickBinding: QuickBinding;
 
     /**
      * 获取单例实例
@@ -135,6 +151,13 @@ export class DataBinding {
     private constructor() {
         // 注册内置转换器
         this.registerBuiltinConverters();
+        
+        // 初始化转换器注册表
+        converterRegistry.registerBuiltinConverters();
+        
+        // 初始化 Fluent API 工具
+        this._builderFactory = new BindingBuilderFactory(this);
+        this._quickBinding = new QuickBinding(this);
     }
 
     /**
@@ -159,6 +182,20 @@ export class DataBinding {
         targetObject: any, 
         config: BindingConfig
     ): string {
+        // 检查必要参数
+        if (!sourceObject) {
+            throw new Error('Source object cannot be null or undefined');
+        }
+        if (!targetObject) {
+            throw new Error('Target object cannot be null or undefined');
+        }
+        if (!config.source) {
+            throw new Error('Source property name is required');
+        }
+        if (!config.target) {
+            throw new Error('Target property name is required');
+        }
+
         const bindingId = `binding_${++this._bindingCounter}`;
         
         // 解析源表达式
@@ -285,6 +322,63 @@ export class DataBinding {
     }
 
     /**
+     * 类型安全的绑定方法
+     */
+    public bindSafe<
+        TSource extends object,
+        TTarget extends object,
+        TSourceKey extends ObservableKeys<TSource>,
+        TTargetKey extends WritableKeys<TTarget>,
+        TConverter extends ConverterName | undefined = undefined
+    >(
+        sourceObject: TSource & IObservable,
+        targetObject: TTarget,
+        config: SafeBindingConfig<TSource, TTarget, TSourceKey, TTargetKey, TConverter>
+    ): string {
+        // 类型检查在编译时完成，这里直接调用原有的绑定逻辑
+        return this.bind(sourceObject, targetObject, config as any);
+    }
+
+    /**
+     * 创建类型安全的绑定构建器
+     */
+    public from<TSource extends object>(
+        source: TSource & IObservable
+    ): ITypeSafeBindingBuilder<TSource> {
+        return this._builderFactory.from(source);
+    }
+
+    /**
+     * 快捷绑定工具
+     */
+    public get quick(): QuickBinding {
+        return this._quickBinding;
+    }
+
+    /**
+     * 创建批量绑定管理器
+     */
+    public createBatchManager(): BatchBindingManager {
+        return new BatchBindingManager(this);
+    }
+
+    /**
+     * 类型安全的转换器注册方法
+     */
+    public registerTypeSafeConverter<TName extends string>(
+        name: TName,
+        converter: IValueConverter,
+        description?: string
+    ): void {
+        this.registerConverter(name, converter);
+        converterRegistry.register(name, {
+            converter: converter as any,
+            description,
+            supportsTwoWay: converter.convertBack !== undefined
+        });
+    }
+
+    /**
      * 解析绑定表达式
      */
     private parseExpression(expression: string): BindingExpression {
@@ -343,7 +437,12 @@ export class DataBinding {
         if (expression.converter) {
             const converter = this._converters.get(expression.converter);
             if (converter) {
-                value = converter.convert(value, expression.converterParams);
+                try {
+                    value = converter.convert(value, expression.converterParams);
+                } catch (error) {
+                    console.warn(`Converter '${expression.converter}' threw an exception:`, error);
+                    // 转换器异常时保持原值
+                }
             }
         }
 
@@ -433,7 +532,12 @@ export class DataBinding {
         if (expression.converter) {
             const converter = this._converters.get(expression.converter);
             if (converter && converter.convertBack) {
-                value = converter.convertBack(value, expression.converterParams);
+                try {
+                    value = converter.convertBack(value, expression.converterParams);
+                } catch (error) {
+                    console.warn(`Converter '${expression.converter}' convertBack threw an exception:`, error);
+                    // 转换器异常时保持原值
+                }
             }
         }
 

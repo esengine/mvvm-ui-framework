@@ -7,9 +7,13 @@ export { DecoratorUtils } from './core/Decorators';
 
 // 管理器
 export * from './managers/UIManager';
+import { UIManager } from './managers/UIManager';
 
 // 数据绑定
 export * from './binding/DataBinding';
+export * from './binding/TypeSafeBinding';
+export * from './binding/ConverterRegistry';
+export * from './binding/FluentBindingBuilder';
 
 // 版本信息
 export const VERSION = '1.0.0';
@@ -19,6 +23,19 @@ export { UIManager, uiManager } from './managers/UIManager';
 export { DataBinding, dataBinding } from './binding/DataBinding';
 export { Observable, createObservable } from './core/Observable';
 export { ViewModel } from './core/ViewModel';
+
+// 类型安全绑定相关导出
+export { 
+    BindingBuilderFactory, 
+    QuickBinding, 
+    BatchBindingManager 
+} from './binding/FluentBindingBuilder';
+export { 
+    converterRegistry, 
+    ConverterRegistry, 
+    registerConverter,
+    getConverter 
+} from './binding/ConverterRegistry';
 
 /**
  * UI框架初始化选项
@@ -36,7 +53,7 @@ export interface UIFrameworkOptions {
  * 初始化UI框架
  */
 export function initializeUIFramework(options: UIFrameworkOptions = {}): void {
-    const { debug = false, defaultLoader, defaultAnimation } = options;
+    const { debug = false, defaultLoader } = options;
     
     if (debug) {
         console.log(`UI Framework v${VERSION} 初始化中...`);
@@ -44,7 +61,6 @@ export function initializeUIFramework(options: UIFrameworkOptions = {}): void {
     
     // 设置默认加载器
     if (defaultLoader) {
-        const { UIManager } = require('./managers/UIManager');
         const manager = UIManager.getInstance();
         manager.setLoader(defaultLoader);
     }

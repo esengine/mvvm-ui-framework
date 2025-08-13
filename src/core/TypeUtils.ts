@@ -156,3 +156,229 @@ export type CommandOverloads<T> = {
             : (...args: P) => R
         : never;
 };
+
+/**
+ * ===== 绑定相关类型工具 =====
+ */
+
+/**
+ * 提取对象中所有非函数属性名（用于绑定的源属性）
+ */
+export type BindableKeys<T> = {
+    [K in keyof T]: T[K] extends Function ? never : K;
+}[keyof T];
+
+/**
+ * 提取对象中所有可写入的属性名（用于绑定的目标属性）
+ */
+export type WritableKeys<T> = {
+    [K in keyof T]: T[K] extends Function ? never : K;
+}[keyof T];
+
+/**
+ * 获取属性的类型
+ */
+export type PropertyType<T, K extends keyof T> = T[K];
+
+/**
+ * 检查类型A是否可以赋值给类型B
+ */
+export type IsAssignable<A, B> = A extends B ? true : false;
+
+/**
+ * 检查两个类型是否兼容（互相可赋值或有公共基类型）
+ */
+export type IsCompatible<A, B> = 
+    IsAssignable<A, B> extends true 
+        ? true 
+        : IsAssignable<B, A> extends true 
+            ? true 
+            : A extends string | number | boolean 
+                ? B extends string | number | boolean 
+                    ? true 
+                    : false
+                : false;
+
+/**
+ * 属性路径类型 - 支持嵌套属性访问如 'user.profile.name'
+ */
+export type PropertyPath<T> = {
+    [K in keyof T]: K extends string
+        ? T[K] extends object
+            ? T[K] extends Function
+                ? K
+                : K | `${K}.${PropertyPath<T[K]>}`
+            : K
+        : never;
+}[keyof T];
+
+/**
+ * 根据属性路径字符串获取对应的类型
+ */
+export type PropertyByPath<T, P extends string> = 
+    P extends `${infer Key}.${infer Rest}`
+        ? Key extends keyof T
+            ? PropertyByPath<T[Key], Rest>
+            : never
+        : P extends keyof T
+            ? T[P]
+            : never;
+
+/**
+ * 绑定类型验证 - 确保源类型和目标类型兼容
+ */
+export type ValidateBindingTypes<TSource, TTarget> = 
+    IsCompatible<TSource, TTarget> extends true
+        ? true
+        : {
+            __error: string;
+          };
+
+/**
+ * 转换器类型映射接口
+ */
+export interface ConverterTypeInfo<TInput = any, TOutput = any> {
+    input: TInput;
+    output: TOutput;
+}
+
+/**
+ * 绑定表达式解析
+ */
+export type ParseBindingExpression<T extends string> = 
+    T extends `${infer Prop} | ${infer Converter}`
+        ? {
+            property: Prop;
+            converter: Converter;
+          }
+        : {
+            property: T;
+            converter: never;
+          };
+
+/**
+ * 深度只读类型
+ */
+export type DeepReadonly<T> = {
+    readonly [P in keyof T]: T[P] extends object 
+        ? T[P] extends Function 
+            ? T[P]
+            : DeepReadonly<T[P]>
+        : T[P];
+};
+
+/**
+ * 深度可选类型
+ */
+export type DeepPartial<T> = {
+    [P in keyof T]?: T[P] extends object 
+        ? T[P] extends Function 
+            ? T[P]
+            : DeepPartial<T[P]>
+        : T[P];
+};
+
+/**
+ * 提取Promise的类型
+ */
+export type UnwrapPromise<T> = T extends Promise<infer U> ? U : T;
+
+/**
+ * 函数参数类型提取
+ */
+export type FunctionParameters<T> = T extends (...args: infer P) => any ? P : never;
+
+/**
+ * 函数返回类型提取
+ */
+export type FunctionReturnType<T> = T extends (...args: any[]) => infer R ? R : never;
+
+/**
+ * 排除undefined的类型
+ */
+export type NonUndefined<T> = T extends undefined ? never : T;
+
+/**
+ * 排除null的类型
+ */
+export type NonNull<T> = T extends null ? never : T;
+
+/**
+ * 排除null和undefined的类型
+ */
+export type NonNullable<T> = T extends null | undefined ? never : T;
+
+/**
+ * 绑定配置验证器
+ */
+export interface BindingConfigValidator<TSource, TTarget> {
+    validateSource(source: TSource): boolean;
+    validateTarget(target: TTarget): boolean;
+    validateCompatibility(source: TSource, target: TTarget): boolean;
+}
+
+/**
+ * 类型安全的绑定工厂
+ */
+export interface TypeSafeBindingFactory {
+    createBinding<
+        TSource extends object,
+        TTarget extends object,
+        TSourceKey extends BindableKeys<TSource>,
+        TTargetKey extends WritableKeys<TTarget>
+    >(
+        source: TSource,
+        target: TTarget,
+        sourceKey: TSourceKey,
+        targetKey: TTargetKey
+    ): boolean;
+}
+
+/**
+ * 绑定元数据
+ */
+export interface BindingMetadata {
+    sourceType: string;
+    targetType: string;
+    converterName?: string;
+    isCompatible: boolean;
+    createdAt: Date;
+}
+
+/**
+ * 类型安全工具函数集合
+ */
+export namespace TypeSafeUtils {
+    /**
+     * 检查对象是否具有指定属性
+     */
+    export function hasProperty<T extends object, K extends keyof T>(
+        obj: T | null | undefined,
+        key: K
+    ): obj is T & Record<K, NonNullable<T[K]>> {
+        return obj != null && key in obj && obj[key] != null;
+    }
+
+    /**
+     * 安全获取属性值
+     */
+    export function getProperty<T, K extends keyof T>(
+        obj: T | null | undefined,
+        key: K
+    ): T[K] | undefined {
+        return obj?.[key];
+    }
+
+    /**
+     * 安全设置属性值
+     */
+    export function setProperty<T extends object, K extends keyof T>(
+        obj: T | null | undefined,
+        key: K,
+        value: T[K]
+    ): void {
+        if (obj != null) {
+            (obj as T)[key] = value;
+        }
+    }
+}
