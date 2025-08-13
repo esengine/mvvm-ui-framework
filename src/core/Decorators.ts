@@ -293,6 +293,21 @@ export function readonly(target: any, propertyKey: string): void {
 }
 
 /**
+ * ViewModel 类装饰器
+ * 自动初始化装饰器功能
+ */
+export function viewModel<T extends { new(...args: any[]): any }>(constructor: T) {
+    return class extends constructor {
+        constructor(...args: any[]) {
+            super(...args);
+            
+            // 自动初始化装饰器功能
+            DecoratorUtils.initializeDecorators(this);
+        }
+    };
+}
+
+/**
  * 装饰器工具类
  * 提供获取元数据的辅助方法
  */
@@ -337,6 +352,8 @@ export class DecoratorUtils {
      * 应该在对象构造后调用
      */
     static initializeDecorators(instance: any): void {
+        this.initializeObservableProperties(instance);
+        
         // 初始化计算属性依赖监听
         this.initializeComputedProperties(instance);
         
@@ -345,6 +362,30 @@ export class DecoratorUtils {
         
         // 初始化验证器
         this.initializeValidators(instance);
+    }
+
+    /**
+     * 初始化可观察属性
+     */
+    private static initializeObservableProperties(instance: any): void {
+        const observableProps = this.getObservableProperties(instance.constructor.prototype);
+        
+        for (const propertyKey of observableProps) {
+            const privateKey = `_${propertyKey}`;
+            
+            // 检查实例上是否有直接的属性值（TypeScript 初始化的）
+            if (instance.hasOwnProperty(propertyKey)) {
+                const currentValue = instance[propertyKey];
+                
+                // 删除实例上的直接属性，让原型上的 getter/setter 生效
+                delete instance[propertyKey];
+                
+                // 将值存储到私有属性
+                instance[privateKey] = currentValue;
+                
+                console.log(`重新应用可观察属性: ${propertyKey}, 初始值: ${currentValue}`);
+            }
+        }
     }
 
     /**

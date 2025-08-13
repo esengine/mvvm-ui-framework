@@ -17,14 +17,15 @@
 ### 安装
 
 ```bash
-npm install @esengine/ui-framework
+npm install @esengine/mvvm-ui-framework
 ```
 
 ### 基础使用
 
 ```typescript
-import { ViewModel, observable, computed, command } from '@esengine/ui-framework';
+import { ViewModel, observable, computed, command, viewModel } from '@esengine/mvvm-ui-framework';
 
+@viewModel
 class UserViewModel extends ViewModel {
     public get name(): string { return 'UserViewModel'; }
 
@@ -49,7 +50,7 @@ class UserViewModel extends ViewModel {
 ### 数据绑定
 
 ```typescript
-import { DataBinding, BindingType, BindingMode } from '@esengine/ui-framework';
+import { DataBinding, BindingType, BindingMode } from '@esengine/mvvm-ui-framework';
 
 const viewModel = new UserViewModel();
 const uiElement = { textContent: '' };
@@ -76,6 +77,7 @@ viewModel.lastName = 'Doe';
 ViewModel是MVVM模式的核心，负责管理UI状态和业务逻辑：
 
 ```typescript
+@viewModel
 class GameViewModel extends ViewModel {
     public get name(): string { return 'GameViewModel'; }
 
@@ -139,6 +141,18 @@ gameVM.executeCommand('loadLevel', 5); // 加载第5关
 ### 装饰器
 
 框架提供了丰富的装饰器来简化开发：
+
+#### @viewModel - ViewModel类装饰器
+```typescript
+@viewModel
+class MyViewModel extends ViewModel {
+    public get name(): string { return 'MyViewModel'; }
+    
+    @observable
+    public data: string = '';
+}
+```
+**重要说明：** 使用 `@viewModel` 装饰器可以自动初始化所有装饰器功能，包括 `@observable`、`@computed`、`@command` 等。这解决了 TypeScript 属性初始化覆盖装饰器的问题，确保数据绑定正常工作。
 
 #### @observable - 可观察属性
 ```typescript
@@ -405,7 +419,7 @@ dataBinding.bind(viewModel, uiElement, {
 完整的UI生命周期管理：
 
 ```typescript
-import { UIManager, UIConfig, UILayer } from '@esengine/ui-framework';
+import { UIManager, UIConfig, UILayer } from '@esengine/mvvm-ui-framework';
 
 // 注册UI配置
 const uiManager = UIManager.getInstance();
@@ -453,7 +467,7 @@ dataBinding.bind(viewModel, uiElement, {
 
 ```typescript
 import { cc } from 'cc';
-import { IUILoader, UIConfig } from '@esengine/ui-framework';
+import { IUILoader, UIConfig } from '@esengine/mvvm-ui-framework';
 
 class CocosUILoader implements IUILoader {
     async loadUI(config: UIConfig): Promise<cc.Node> {
@@ -485,7 +499,7 @@ uiManager.setLoader(new CocosUILoader());
 
 ```typescript
 import * as fgui from 'fairygui-cc';
-import { IUILoader, UIConfig } from '@esengine/ui-framework';
+import { IUILoader, UIConfig } from '@esengine/mvvm-ui-framework';
 
 class FGUILoader implements IUILoader {
     async loadUI(config: UIConfig): Promise<fgui.GComponent> {
@@ -506,10 +520,26 @@ class FGUILoader implements IUILoader {
 
 ### 1. ViewModel设计原则
 
+- **必须使用 `@viewModel` 装饰器**：确保装饰器功能正常工作
 - 保持ViewModel的纯净性，不包含UI相关代码
 - 使用装饰器简化代码
 - 合理使用计算属性避免重复计算
 - 为异步操作添加loading和error状态
+
+```typescript
+// ✅ 正确的做法
+@viewModel
+class MyViewModel extends ViewModel {
+    @observable
+    public data: string = '';
+}
+
+// ❌ 错误的做法 - 缺少 @viewModel 装饰器
+class MyViewModel extends ViewModel {
+    @observable
+    public data: string = '';  // 这样的数据绑定不会工作
+}
+```
 
 ### 2. 数据绑定优化
 
