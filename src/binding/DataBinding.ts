@@ -71,6 +71,8 @@ export interface BindingConfig {
  * 绑定实例
  */
 export interface BindingInstance {
+    /** 绑定ID */
+    id: string;
     /** 配置 */
     config: BindingConfig;
     /** 源表达式 */
@@ -116,6 +118,9 @@ export class DataBinding {
     
     /** 绑定计数器 */
     private _bindingCounter: number = 0;
+    
+    /** 正在更新的绑定集合（防止循环更新） */
+    private _updatingBindings: Set<string> = new Set();
 
     /**
      * 获取单例实例
@@ -170,6 +175,7 @@ export class DataBinding {
         
         // 创建绑定实例
         const binding: BindingInstance = {
+            id: bindingId,
             config,
             sourceExpression,
             targetObject,
@@ -181,7 +187,7 @@ export class DataBinding {
         // 创建观察者
         if (config.type !== BindingType.ONE_TIME) {
             binding.observer = (newValue: any, oldValue: any, property: string) => {
-                if (binding.active && config.enabled !== false) {
+                if (binding.active && config.enabled !== false && !this._updatingBindings.has(binding.id)) {
                     // 重新计算值（包括转换器）而不是直接使用newValue
                     // 在FORMAT模式下，跳过getSourceValue中的格式化，让updateTarget处理
                     const skipFormat = binding.config.mode === BindingMode.FORMAT;
@@ -397,8 +403,8 @@ export class DataBinding {
         // 由于我们不知道目标对象的类型，这里只是示例实现
         if (targetObject && typeof targetObject.addObserver === 'function') {
             const targetObserver = (newValue: any) => {
-                if (binding.active) {
-                    this.updateSource(sourceObject, sourceExpression, newValue);
+                if (binding.active && !this._updatingBindings.has(binding.id)) {
+                    this.updateSource(sourceObject, sourceExpression, newValue, binding.id);
                 }
             };
             
@@ -409,9 +415,18 @@ export class DataBinding {
     /**
      * 更新源值（双向绑定）
      */
-    private updateSource(sourceObject: any, expression: BindingExpression, value: any): void {
+    private updateSource(sourceObject: any, expression: BindingExpression, value: any, bindingId?: string): void {
         if (expression.path.length === 0) {
             return;
+        }
+
+        // 防止循环更新
+        if (bindingId && this._updatingBindings.has(bindingId)) {
+            return;
+        }
+
+        if (bindingId) {
+            this._updatingBindings.add(bindingId);
         }
 
         // 反向转换值
@@ -432,10 +447,18 @@ export class DataBinding {
         }
 
         const lastProperty = expression.path[expression.path.length - 1];
-        if (typeof target.setProperty === 'function') {
-            target.setProperty(lastProperty, value);
-        } else {
-            target[lastProperty] = value;
+        
+        try {
+            if (typeof target.setProperty === 'function') {
+                target.setProperty(lastProperty, value);
+            } else {
+                target[lastProperty] = value;
+            }
+        } finally {
+            // 清理循环检测标记
+            if (bindingId) {
+                this._updatingBindings.delete(bindingId);
+            }
         }
     }
 
