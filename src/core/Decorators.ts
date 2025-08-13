@@ -87,21 +87,53 @@ export function computed(dependencies: string[]) {
 }
 
 /**
+ * 命令装饰器选项
+ */
+interface CommandOptions {
+    /** 可执行检查方法名 */
+    canExecuteMethod?: string;
+    /** 是否为参数化命令 */
+    parameterized?: boolean;
+    /** 是否为异步命令 */
+    async?: boolean;
+}
+
+/**
  * 命令装饰器
  * 自动为方法创建命令
  */
-export function command(canExecuteMethod?: string) {
+export function command(options?: string | CommandOptions) {
     return function(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
         const originalMethod = descriptor.value;
         if (typeof originalMethod !== 'function') {
             throw new Error(`@command 装饰器只能用于方法`);
         }
 
+        // 处理参数兼容性
+        let canExecuteMethod: string | undefined;
+        let parameterized = false;
+        let async = false;
+
+        if (typeof options === 'string') {
+            canExecuteMethod = options;
+        } else if (options) {
+            canExecuteMethod = options.canExecuteMethod;
+            parameterized = options.parameterized || false;
+            async = options.async || false;
+        }
+
+        // 检测方法参数数量来自动判断是否为参数化命令
+        if (!parameterized && originalMethod.length > 0) {
+            parameterized = true;
+        }
+
         // 存储命令元数据
         const commands = Reflect.getMetadata(COMMAND_KEY, target) || new Map();
         commands.set(propertyKey, {
             method: originalMethod,
-            canExecuteMethod
+            canExecuteMethod,
+            parameterized,
+            async
         });
         Reflect.defineMetadata(COMMAND_KEY, commands, target);
 
@@ -343,13 +375,49 @@ export class DecoratorUtils {
     private static initializeCommands(instance: any): void {
         const commands = this.getCommands(instance.constructor.prototype);
         
-        if (commands.size > 0 && instance.createCommand) {
+        if (commands.size > 0) {
             for (const [commandName, commandInfo] of commands) {
-                const canExecute = commandInfo.canExecuteMethod ? 
-                    () => instance[commandInfo.canExecuteMethod]() : 
-                    undefined;
+                const { method, canExecuteMethod, parameterized, async } = commandInfo;
                 
-                instance.createCommand(commandName, () => commandInfo.method.call(instance), canExecute);
+                if (parameterized) {
+                    // 参数化命令
+                    const canExecute = canExecuteMethod ? 
+                        (...args: any[]) => instance[canExecuteMethod](...args) : 
+                        undefined;
+                    
+                    if (async && instance.createAsyncParameterizedCommand) {
+                        instance.createAsyncParameterizedCommand(
+                            commandName, 
+                            (...args: any[]) => method.apply(instance, args), 
+                            canExecute
+                        );
+                    } else if (instance.createParameterizedCommand) {
+                        instance.createParameterizedCommand(
+                            commandName, 
+                            (...args: any[]) => method.apply(instance, args), 
+                            canExecute
+                        );
+                    }
+                } else {
+                    // 普通命令
+                    const canExecute = canExecuteMethod ? 
+                        () => instance[canExecuteMethod]() : 
+                        undefined;
+                    
+                    if (async && instance.createAsyncCommand) {
+                        instance.createAsyncCommand(
+                            commandName, 
+                            () => method.call(instance), 
+                            canExecute
+                        );
+                    } else if (instance.createCommand) {
+                        instance.createCommand(
+                            commandName, 
+                            () => method.call(instance), 
+                            canExecute
+                        );
+                    }
+                }
             }
         }
     }

@@ -116,6 +116,180 @@ export interface IAsyncCommand {
 }
 
 /**
+ * 参数化命令接口，扩展基础命令接口
+ */
+export interface IParameterizedCommand extends ICommand {
+    /**
+     * 执行带参数的命令
+     */
+    execute(...args: any[]): void;
+
+    /**
+     * 检查是否可以执行
+     */
+    canExecute(...args: any[]): boolean;
+
+    /**
+     * 撤销命令（可选）
+     */
+    undo?(...args: any[]): void;
+
+    /**
+     * 重做命令（可选）
+     */
+    redo?(...args: any[]): void;
+}
+
+/**
+ * 参数化命令实现
+ */
+export class ParameterizedCommand implements IParameterizedCommand {
+    private _execute: (...args: any[]) => void;
+    private _canExecute: (...args: any[]) => boolean;
+    private _undo?: (...args: any[]) => void;
+    private _redo?: (...args: any[]) => void;
+
+    constructor(
+        execute: (...args: any[]) => void,
+        canExecute?: (...args: any[]) => boolean,
+        undo?: (...args: any[]) => void,
+        redo?: (...args: any[]) => void
+    ) {
+        this._execute = execute;
+        this._canExecute = canExecute || (() => true);
+        this._undo = undo;
+        this._redo = redo;
+    }
+
+    /**
+     * 执行命令
+     */
+    public execute(...args: any[]): void {
+        if (this.canExecute(...args)) {
+            this._execute(...args);
+        }
+    }
+
+    /**
+     * 检查是否可以执行
+     */
+    public canExecute(...args: any[]): boolean {
+        return this._canExecute(...args);
+    }
+
+    /**
+     * 撤销命令
+     */
+    public undo(...args: any[]): void {
+        if (this._undo) {
+            this._undo(...args);
+        }
+    }
+
+    /**
+     * 重做命令
+     */
+    public redo(...args: any[]): void {
+        if (this._redo) {
+            this._redo(...args);
+        } else {
+            this.execute(...args);
+        }
+    }
+
+    /**
+     * 检查是否支持撤销
+     */
+    public get canUndo(): boolean {
+        return this._undo !== undefined;
+    }
+
+    /**
+     * 检查是否支持重做
+     */
+    public get canRedo(): boolean {
+        return this._redo !== undefined || this._execute !== undefined;
+    }
+}
+
+/**
+ * 异步参数化命令接口
+ */
+export interface IAsyncParameterizedCommand extends ICommand {
+    /**
+     * 异步执行带参数的命令
+     */
+    executeAsync(...args: any[]): Promise<void>;
+
+    /**
+     * 检查是否可以执行
+     */
+    canExecute(...args: any[]): boolean;
+
+    /**
+     * 检查是否正在执行
+     */
+    isExecuting(): boolean;
+}
+
+/**
+ * 异步参数化命令实现
+ */
+export class AsyncParameterizedCommand implements IAsyncParameterizedCommand {
+    private _execute: (...args: any[]) => Promise<void>;
+    private _canExecute: (...args: any[]) => boolean;
+    private _isExecuting: boolean = false;
+
+    constructor(
+        execute: (...args: any[]) => Promise<void>,
+        canExecute?: (...args: any[]) => boolean
+    ) {
+        this._execute = execute;
+        this._canExecute = canExecute || (() => true);
+    }
+
+    /**
+     * 同步执行接口（为了兼容ICommand）
+     */
+    public execute(...args: any[]): void {
+        // 对于异步命令，execute方法触发executeAsync但不等待
+        this.executeAsync(...args).catch(error => {
+            console.error('异步命令执行出错:', error);
+        });
+    }
+
+    /**
+     * 异步执行命令
+     */
+    public async executeAsync(...args: any[]): Promise<void> {
+        if (!this.canExecute(...args)) {
+            return;
+        }
+
+        this._isExecuting = true;
+        try {
+            await this._execute(...args);
+        } finally {
+            this._isExecuting = false;
+        }
+    }
+
+    /**
+     * 检查是否可以执行
+     */
+    public canExecute(...args: any[]): boolean {
+        return !this._isExecuting && this._canExecute(...args);
+    }
+
+    /**
+     * 检查是否正在执行
+     */
+    public isExecuting(): boolean {
+        return this._isExecuting;
+    }
+}
+
+/**
  * 异步命令实现
  */
 export class AsyncCommand implements IAsyncCommand {
@@ -129,6 +303,16 @@ export class AsyncCommand implements IAsyncCommand {
     ) {
         this._execute = execute;
         this._canExecute = canExecute || (() => true);
+    }
+
+    /**
+     * 同步执行接口（为了兼容ICommand）
+     */
+    public execute(): void {
+        // 对于异步命令，execute方法触发executeAsync但不等待
+        this.executeAsync().catch(error => {
+            console.error('异步命令执行出错:', error);
+        });
     }
 
     /**

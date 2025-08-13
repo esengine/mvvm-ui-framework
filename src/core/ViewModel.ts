@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Observable } from './Observable';
 import { DecoratorUtils } from './Decorators';
+import { ParameterizedCommand, AsyncParameterizedCommand } from './Command';
 
 /**
  * 命令接口
@@ -105,10 +106,28 @@ export abstract class ViewModel extends Observable {
     }
 
     /**
+     * 创建参数化命令
+     */
+    public createParameterizedCommand(name: string, executeAction: (...args: any[]) => void, canExecuteAction?: (...args: any[]) => boolean): ICommand {
+        const command = new ParameterizedCommand(executeAction, canExecuteAction);
+        this._commands.set(name, command);
+        return command;
+    }
+
+    /**
      * 创建异步命令
      */
     public createAsyncCommand(name: string, executeAction: () => Promise<void>, canExecuteAction?: () => boolean): ICommand {
         const command = new AsyncCommand(executeAction, canExecuteAction);
+        this._commands.set(name, command);
+        return command;
+    }
+
+    /**
+     * 创建异步参数化命令
+     */
+    public createAsyncParameterizedCommand(name: string, executeAction: (...args: any[]) => Promise<void>, canExecuteAction?: (...args: any[]) => boolean): ICommand {
+        const command = new AsyncParameterizedCommand(executeAction, canExecuteAction);
         this._commands.set(name, command);
         return command;
     }
@@ -123,10 +142,17 @@ export abstract class ViewModel extends Observable {
     /**
      * 执行命令
      */
-    public executeCommand(name: string): void {
+    public executeCommand(name: string, ...args: any[]): void {
         const command = this._commands.get(name);
         if (command) {
-            command.execute();
+            if (command instanceof ParameterizedCommand || command instanceof AsyncParameterizedCommand) {
+                (command as any).execute(...args);
+            } else if ('execute' in command && typeof command.execute === 'function') {
+                if (args.length > 0) {
+                    console.warn(`命令 ${name} 不支持参数，参数将被忽略`);
+                }
+                (command as any).execute();
+            }
         }
     }
 

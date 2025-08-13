@@ -8,7 +8,7 @@
 - **数据绑定** - 支持单向、双向、一次性绑定
 - **UI管理** - 完整的UI生命周期管理
 - **装饰器支持** - 简化开发，减少样板代码
-- **命令模式** - 解耦UI操作和业务逻辑
+- **命令模式** - 解耦UI操作和业务逻辑，支持参数化命令和异步命令
 - **值转换器** - 灵活的数据格式化
 - **高性能** - 优化的观察者模式和缓存机制
 
@@ -85,6 +85,9 @@ class GameViewModel extends ViewModel {
     @observable
     public lives: number = 3;
 
+    @observable
+    public currentLevel: number = 1;
+
     @computed(['lives'])
     public get isGameOver(): boolean {
         return this.lives <= 0;
@@ -94,12 +97,43 @@ class GameViewModel extends ViewModel {
     public restartGame(): void {
         this.score = 0;
         this.lives = 3;
+        this.currentLevel = 1;
+    }
+
+    // 参数化命令 - 支持传入参数
+    @command({ parameterized: true, canExecuteMethod: 'canAddScore' })
+    public addScore(points: number, multiplier: number = 1): void {
+        this.score += points * multiplier;
+    }
+
+    // 异步参数化命令
+    @command({ parameterized: true, async: true })
+    public async loadLevel(levelId: number): Promise<void> {
+        console.log(`正在加载关卡 ${levelId}...`);
+        // 模拟异步加载
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        this.currentLevel = levelId;
+        console.log(`关卡 ${levelId} 加载完成`);
     }
 
     public canRestart(): boolean {
         return this.isGameOver;
     }
+
+    public canAddScore(points: number, multiplier: number = 1): boolean {
+        return points > 0 && !this.isGameOver;
+    }
 }
+
+// 使用示例
+const gameVM = new GameViewModel();
+
+// 执行基础命令
+gameVM.executeCommand('restartGame');
+
+// 执行参数化命令
+gameVM.executeCommand('addScore', 100, 2); // 添加200分
+gameVM.executeCommand('loadLevel', 5); // 加载第5关
 ```
 
 ### 装饰器
@@ -122,9 +156,30 @@ public get totalScore(): number {
 
 #### @command - 命令
 ```typescript
+// 基础命令
 @command('canSave')
 public saveGame(): void {
     // 保存游戏逻辑
+}
+
+// 参数化命令 - 支持传入参数
+@command({ parameterized: true, canExecuteMethod: 'canAttack' })
+public attackEnemy(enemyId: number, damage: number): void {
+    // 攻击敌人逻辑
+    console.log(`攻击敌人 ${enemyId}，造成 ${damage} 伤害`);
+}
+
+public canAttack(enemyId: number, damage: number): boolean {
+    return this.lives > 0 && damage > 0;
+}
+
+// 异步参数化命令
+@command({ parameterized: true, async: true })
+public async loadLevel(levelId: number): Promise<void> {
+    // 异步加载关卡
+    console.log(`开始加载关卡 ${levelId}`);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log(`关卡 ${levelId} 加载完成`);
 }
 ```
 
@@ -163,6 +218,146 @@ public search(keyword: string): void {
 public autoSave(): void {
     // 自动保存，1秒内多次调用只执行一次
 }
+```
+
+### 命令系统
+
+框架提供了完整的命令系统，支持基础命令、参数化命令和异步命令：
+
+#### 基础命令
+基础命令不接受参数，用于简单的操作：
+```typescript
+class UserViewModel extends ViewModel {
+    @observable
+    public hasPermission: boolean = false;
+
+    @command()
+    public save(): void {
+        // 保存逻辑
+    }
+    
+    @command('canDelete')
+    public delete(): void {
+        // 删除逻辑
+    }
+    
+    public canDelete(): boolean {
+        return this.hasPermission;
+    }
+}
+```
+
+#### 参数化命令
+参数化命令可以接受参数，提供更大的灵活性：
+```typescript
+class GameViewModel extends ViewModel {
+    @observable
+    public playerAlive: boolean = true;
+
+    @command({ parameterized: true })
+    public movePlayer(direction: string, distance: number): void {
+        console.log(`玩家向${direction}移动${distance}距离`);
+    }
+    
+    @command({ parameterized: true, canExecuteMethod: 'canAttack' })
+    public attackEnemy(enemyId: number, damage: number): void {
+        console.log(`攻击敌人${enemyId}，造成${damage}伤害`);
+    }
+    
+    public canAttack(enemyId: number, damage: number): boolean {
+        return enemyId > 0 && damage > 0 && this.playerAlive;
+    }
+}
+```
+
+#### 异步命令
+异步命令支持Promise操作，自动管理执行状态：
+```typescript
+interface UploadOptions {
+    compress?: boolean;
+}
+
+class DataViewModel extends ViewModel {
+    @observable
+    public maxFileSize: number = 1024 * 1024 * 10; // 10MB
+    
+    @observable
+    public isUploading: boolean = false;
+
+    private apiService = {
+        uploadFile: async (file: File, options?: UploadOptions) => {
+            // 模拟API调用
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+    };
+
+    @command({ async: true })
+    public async loadData(): Promise<void> {
+        console.log('开始加载数据...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('数据加载完成');
+    }
+    
+    @command({ parameterized: true, async: true, canExecuteMethod: 'canUpload' })
+    public async uploadFile(file: File, options?: UploadOptions): Promise<void> {
+        console.log(`开始上传文件: ${file.name}`);
+        this.isUploading = true;
+        try {
+            await this.apiService.uploadFile(file, options);
+            console.log('文件上传完成');
+        } finally {
+            this.isUploading = false;
+        }
+    }
+    
+    public canUpload(file: File, options?: UploadOptions): boolean {
+        return file.size <= this.maxFileSize && !this.isUploading;
+    }
+}
+```
+
+#### 命令执行
+```typescript
+const gameViewModel = new GameViewModel();
+const dataViewModel = new DataViewModel();
+
+// 执行基础命令
+gameViewModel.executeCommand('save');
+
+// 执行参数化命令
+gameViewModel.executeCommand('movePlayer', 'north', 10);
+gameViewModel.executeCommand('attackEnemy', 123, 50);
+
+// 执行异步命令
+dataViewModel.executeCommand('loadData');
+
+// 执行异步参数化命令
+const file = new File(['content'], 'test.txt');
+dataViewModel.executeCommand('uploadFile', file, { compress: true });
+
+// 获取命令状态
+const loadCommand = dataViewModel.getCommand('loadData');
+if (loadCommand?.isExecuting && loadCommand.isExecuting()) {
+    console.log('数据正在加载中...');
+}
+```
+
+#### 命令装饰器选项
+`@command` 装饰器支持以下选项：
+- `canExecuteMethod`: 指定可执行检查方法名
+- `parameterized`: 标记为参数化命令（框架会根据方法参数数量自动检测）
+- `async`: 标记为异步命令
+
+```typescript
+// 字符串形式（向后兼容）
+@command('canExecuteMethodName')
+
+// 对象形式（推荐）
+@command({
+    canExecuteMethod: 'canExecuteMethodName',
+    parameterized: true,
+    async: true
+})
 ```
 
 ### 数据绑定
