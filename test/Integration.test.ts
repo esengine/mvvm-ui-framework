@@ -3,6 +3,7 @@ import {
     observable, 
     computed, 
     command,
+    viewModel,
     DataBinding,
     BindingType,
     BindingMode,
@@ -14,6 +15,7 @@ import {
 /**
  * 完整的用户ViewModel - 演示所有功能
  */
+@viewModel
 class UserProfileViewModel extends ViewModel {
     public get name(): string { return 'UserProfileViewModel'; }
 
@@ -136,7 +138,7 @@ describe('MVVM框架集成测试', () => {
     beforeEach(() => {
         viewModel = new UserProfileViewModel();
         dataBinding = DataBinding.getInstance();
-        uiManager = new UIManager();
+        uiManager = UIManager.getInstance();
         uiManager.setLoader(new MockUILoader());
         
         // 清理之前的绑定
@@ -237,13 +239,13 @@ describe('MVVM框架集成测试', () => {
             const vipStatusElement = new MockUIElement();
             const scoreElement = new MockUIElement();
 
-            // 布尔值转换器
+            // 布尔值转字符串转换器
             dataBinding.bind(viewModel, vipStatusElement, {
                 type: BindingType.ONE_WAY,
                 mode: BindingMode.REPLACE,
                 source: 'isVip',
                 target: 'textContent',
-                converter: 'bool'
+                converter: 'string'
             });
 
             // 数字转换器
@@ -374,7 +376,7 @@ describe('MVVM框架集成测试', () => {
                 mode: BindingMode.REPLACE,
                 source: 'isVip',
                 target: 'textContent',
-                converter: 'bool'
+                converter: 'string'
             });
 
             dataBinding.bind(viewModel, adultStatus, {
@@ -382,7 +384,7 @@ describe('MVVM框架集成测试', () => {
                 mode: BindingMode.REPLACE,
                 source: 'isAdult',
                 target: 'textContent',
-                converter: 'bool'
+                converter: 'string'
             });
 
             // 3. 通过命令更新数据

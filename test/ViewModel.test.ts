@@ -1,6 +1,7 @@
 import { ViewModel } from '../src/core/ViewModel';
-import { observable, command, computed } from '../src/core/Decorators';
+import { observable, command, computed, viewModel } from '../src/core/Decorators';
 
+@viewModel
 class TestViewModel extends ViewModel {
     public get name(): string { return 'TestViewModel'; }
 

@@ -559,20 +559,6 @@ class MyViewModel extends ViewModel {
 - 合理使用计算属性缓存
 - 避免在观察者回调中进行重计算
 
-## API参考
-
-详细的API文档请参考：
-
-- [ViewModel API](./docs/ViewModel.md)
-- [DataBinding API](./docs/DataBinding.md)
-- [UIManager API](./docs/UIManager.md)
-- [装饰器 API](./docs/Decorators.md)
-
-## 示例项目
-
-- [基础示例](./src/examples/BasicExample.ts)
-- [装饰器示例](./src/examples/DecoratorExample.ts)
-
 ## 许可证
 
 MIT License 

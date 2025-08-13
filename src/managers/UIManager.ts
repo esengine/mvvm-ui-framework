@@ -190,7 +190,7 @@ export class UIManager {
     /**
      * 设置UI加载器
      */
-    public setLoader(loader: IUILoader): void {
+    public setLoader(loader: IUILoader | null): void {
         this._loader = loader;
     }
 
@@ -371,12 +371,22 @@ export class UIManager {
     /**
      * 清理缓存
      */
-    public clearCache(): void {
+    public async clearCache(): Promise<void> {
+        const instancesToDestroy: UIInstance[] = [];
+        
+        // 收集需要清理的实例
         for (const [uiName, instance] of this._instances) {
             if (instance.state === UIState.HIDDEN && instance.config.cacheable) {
-                this.destroyUIInternal(instance);
+                instancesToDestroy.push(instance);
             }
         }
+        
+        // 销毁收集到的实例
+        const destroyPromises = instancesToDestroy.map(instance => 
+            this.destroyUIInternal(instance)
+        );
+        
+        await Promise.all(destroyPromises);
     }
 
     /**
@@ -387,7 +397,13 @@ export class UIManager {
         this._configs.clear();
         this._instances.clear();
         this._showStack.length = 0;
+        
+        // 重新初始化事件监听器映射
         this._eventListeners.clear();
+        for (const event of Object.values(UIEvent)) {
+            this._eventListeners.set(event, new Set());
+        }
+        
         this._loader = null;
     }
 

@@ -6,8 +6,9 @@ import {
     dataBinding
 } from '../src/binding/DataBinding';
 import { ViewModel } from '../src/core/ViewModel';
-import { observable, computed } from '../src/core/Decorators';
+import { observable, computed, viewModel } from '../src/core/Decorators';
 
+@viewModel
 class TestDataBindingViewModel extends ViewModel {
     public get name(): string { return 'TestDataBindingViewModel'; }
 
@@ -69,8 +70,12 @@ class MockUIElement {
 }
 
 // 模拟可观察的UI元素（支持双向绑定）
-class MockObservableUIElement extends MockUIElement {
-    private _observers: Map<string | null, Function[]> = new Map();
+class MockObservableUIElement {
+    public textContent: string = '';
+    public innerHTML: string = '';
+    public className: string = '';
+    private _eventObservers: Map<string, Function[]> = new Map();
+    private _propertyObservers: Map<string | null, Function[]> = new Map();
     private _value: string = '';
 
     public get value(): string {
@@ -83,15 +88,39 @@ class MockObservableUIElement extends MockUIElement {
         this.notifyObservers('value', newValue, oldValue);
     }
 
-    public addObserver(property: string | null, observer: Function): void {
-        if (!this._observers.has(property)) {
-            this._observers.set(property, []);
+    // 事件系统
+    public addEventListener(event: string, handler: Function): void {
+        if (!this._eventObservers.has(event)) {
+            this._eventObservers.set(event, []);
         }
-        this._observers.get(property)!.push(observer);
+        this._eventObservers.get(event)!.push(handler);
+    }
+
+    public removeEventListener(event: string, handler: Function): void {
+        const handlers = this._eventObservers.get(event);
+        if (handlers) {
+            const index = handlers.indexOf(handler);
+            if (index !== -1) {
+                handlers.splice(index, 1);
+            }
+        }
+    }
+
+    public triggerEvent(event: string, data?: any): void {
+        const handlers = this._eventObservers.get(event);
+        handlers?.forEach(handler => handler(data));
+    }
+
+    // 属性观察系统
+    public addObserver(property: string | null, observer: Function): void {
+        if (!this._propertyObservers.has(property)) {
+            this._propertyObservers.set(property, []);
+        }
+        this._propertyObservers.get(property)!.push(observer);
     }
 
     public removeObserver(property: string | null, observer: Function): void {
-        const observers = this._observers.get(property);
+        const observers = this._propertyObservers.get(property);
         if (observers) {
             const index = observers.indexOf(observer);
             if (index !== -1) {
@@ -101,12 +130,12 @@ class MockObservableUIElement extends MockUIElement {
     }
 
     private notifyObservers(property: string, newValue: any, oldValue: any): void {
-        const propertyObservers = this._observers.get(property);
+        const propertyObservers = this._propertyObservers.get(property);
         if (propertyObservers) {
             propertyObservers.forEach(observer => observer(newValue, oldValue, property));
         }
         
-        const globalObservers = this._observers.get(null);
+        const globalObservers = this._propertyObservers.get(null);
         if (globalObservers) {
             globalObservers.forEach(observer => observer(newValue, oldValue, property));
         }

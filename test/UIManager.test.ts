@@ -70,7 +70,7 @@ describe('UIManager', () => {
     let mockLoader: MockUILoader;
 
     beforeEach(() => {
-        manager = new UIManager();
+        manager = UIManager.getInstance();
         mockLoader = new MockUILoader();
         manager.setLoader(mockLoader);
     });
@@ -293,7 +293,7 @@ describe('UIManager', () => {
             
             expect(manager.hasUI('CacheablePanel')).toBe(true);
             
-            manager.clearCache();
+            await manager.clearCache();
             
             expect(manager.hasUI('CacheablePanel')).toBe(false);
         });
@@ -535,7 +535,8 @@ describe('UIManager', () => {
         });
 
         test('应该处理没有设置加载器的情况', async () => {
-            const noLoaderManager = new UIManager();
+            const noLoaderManager = UIManager.getInstance();
+            noLoaderManager.setLoader(null); // 清除加载器
             noLoaderManager.registerUI({ name: 'Test', path: 'test' });
 
             const instance = await noLoaderManager.showUI('Test');

@@ -28,6 +28,24 @@ export function observable(target: any, propertyKey: string): void {
         set: function(this: any, value: any) {
             const oldValue = this[privateKey];
             if (oldValue !== value) {
+                // 如果对象有setProperty方法(ViewModel)，使用它来处理验证
+                if (this.setProperty && typeof this.setProperty === 'function') {
+                    // 为了避免循环调用，我们需要一个标记
+                    const settingKey = `_setting_${propertyKey}`;
+                    if (!this[settingKey]) {
+                        this[settingKey] = true;
+                        try {
+                            // 调用setProperty进行验证，但它会再次触发setter
+                            this.setProperty(propertyKey, value);
+                        } finally {
+                            this[settingKey] = false;
+                        }
+                        return; // 避免重复设置
+                    }
+                    // 这里是setProperty再次调用setter的情况，继续执行设置和通知
+                }
+                
+                // 直接设置值的情况（非ViewModel或递归调用）
                 this[privateKey] = value;
                 
                 // 如果对象实现了可观察接口，通知观察者
@@ -303,6 +321,11 @@ export function viewModel<T extends { new(...args: any[]): any }>(constructor: T
             
             // 自动初始化装饰器功能
             DecoratorUtils.initializeDecorators(this);
+            
+            // 装饰器初始化完成后，重置脏状态
+            if (this.markAsClean && typeof this.markAsClean === 'function') {
+                this.markAsClean();
+            }
         }
     };
 }
@@ -383,7 +406,7 @@ export class DecoratorUtils {
                 // 将值存储到私有属性
                 instance[privateKey] = currentValue;
                 
-                console.log(`重新应用可观察属性: ${propertyKey}, 初始值: ${currentValue}`);
+                // console.log(`重新应用可观察属性: ${propertyKey}, 初始值: ${currentValue}`);
             }
         }
     }

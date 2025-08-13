@@ -7,10 +7,12 @@ import {
     throttle, 
     async as asyncDecorator,
     readonly,
+    viewModel,
     DecoratorUtils
 } from '../src/core/Decorators';
 import { ViewModel } from '../src/core/ViewModel';
 
+@viewModel
 class DecoratorTestViewModel extends ViewModel {
     public get name(): string { return 'DecoratorTestViewModel'; }
 
@@ -47,7 +49,7 @@ class DecoratorTestViewModel extends ViewModel {
 
     @validate((value: string) => value.length > 0, '不能为空')
     @observable
-    public validatedProp: string = '';
+    public validatedProp: string = 'initial';
 
     @validate((value: number) => value >= 0 && value <= 100, '必须在0-100之间')
     @observable

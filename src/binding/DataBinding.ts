@@ -159,6 +159,15 @@ export class DataBinding {
         // 解析源表达式
         const sourceExpression = this.parseExpression(config.source);
         
+        // 合并配置中的转换器参数
+        if (config.converter && !sourceExpression.converter) {
+            sourceExpression.converter = config.converter;
+            sourceExpression.converterParams = config.converterParams;
+        }
+        if (config.format && !sourceExpression.format) {
+            sourceExpression.format = config.format;
+        }
+        
         // 创建绑定实例
         const binding: BindingInstance = {
             config,
@@ -173,7 +182,11 @@ export class DataBinding {
         if (config.type !== BindingType.ONE_TIME) {
             binding.observer = (newValue: any, oldValue: any, property: string) => {
                 if (binding.active && config.enabled !== false) {
-                    this.updateTarget(binding, newValue);
+                    // 重新计算值（包括转换器）而不是直接使用newValue
+                    // 在FORMAT模式下，跳过getSourceValue中的格式化，让updateTarget处理
+                    const skipFormat = binding.config.mode === BindingMode.FORMAT;
+                    const computedValue = this.getSourceValue(sourceObject, binding.sourceExpression, skipFormat);
+                    this.updateTarget(binding, computedValue);
                 }
             };
 
@@ -183,7 +196,9 @@ export class DataBinding {
         }
 
         // 初始化绑定值
-        const initialValue = this.getSourceValue(sourceObject, sourceExpression);
+        // 在FORMAT模式下，跳过getSourceValue中的格式化，让updateTarget处理
+        const skipFormat = config.mode === BindingMode.FORMAT;
+        const initialValue = this.getSourceValue(sourceObject, sourceExpression, skipFormat);
         this.updateTarget(binding, initialValue);
 
         // 如果是双向绑定，监听目标对象变化
@@ -258,7 +273,8 @@ export class DataBinding {
             return;
         }
 
-        const value = this.getSourceValue(sourceObject, binding.sourceExpression);
+        const skipFormat = binding.config.mode === BindingMode.FORMAT;
+        const value = this.getSourceValue(sourceObject, binding.sourceExpression, skipFormat);
         this.updateTarget(binding, value);
     }
 
@@ -306,13 +322,13 @@ export class DataBinding {
     /**
      * 获取源值
      */
-    private getSourceValue(sourceObject: any, expression: BindingExpression): any {
+    private getSourceValue(sourceObject: any, expression: BindingExpression, skipFormat: boolean = false): any {
         let value = sourceObject;
         
         // 沿着属性路径获取值
         for (const prop of expression.path) {
             if (value == null) {
-                return undefined;
+                return '';
             }
             value = value[prop];
         }
@@ -325,12 +341,13 @@ export class DataBinding {
             }
         }
 
-        // 应用格式化
-        if (expression.format) {
+        // 应用格式化（除非跳过格式化）
+        if (expression.format && !skipFormat) {
             value = this.formatValue(value, expression.format);
         }
 
-        return value;
+        // 确保不返回undefined
+        return value == null ? '' : value;
     }
 
     /**
@@ -445,13 +462,13 @@ export class DataBinding {
     private registerBuiltinConverters(): void {
         // 布尔转换器
         this.registerConverter('bool', {
-            convert: (value: any) => Boolean(value),
-            convertBack: (value: any) => Boolean(value)
+            convert: (value: any) => Boolean(value).toString(),
+            convertBack: (value: any) => value === 'true' || value === true
         });
 
         // 数字转换器
         this.registerConverter('number', {
-            convert: (value: any) => Number(value) || 0,
+            convert: (value: any) => (Number(value) || 0).toString(),
             convertBack: (value: any) => Number(value) || 0
         });
 
@@ -486,8 +503,8 @@ export class DataBinding {
 
         // 反转转换器
         this.registerConverter('not', {
-            convert: (value: any) => !value,
-            convertBack: (value: any) => !value
+            convert: (value: any) => (!value).toString(),
+            convertBack: (value: any) => !(value === 'true' || value === true)
         });
     }
 

@@ -1,9 +1,10 @@
 import { ViewModel } from '../src/core/ViewModel';
-import { observable, command } from '../src/core/Decorators';
+import { observable, command, viewModel } from '../src/core/Decorators';
 
 /**
  * 游戏ViewModel示例 - 支持参数化命令
  */
+@viewModel
 class GameViewModel extends ViewModel {
     public get name(): string { return 'GameViewModel'; }
 
