@@ -5,7 +5,7 @@ export interface ICommand {
     /**
      * 执行命令
      */
-    execute(): void;
+    execute(): any;
 
     /**
      * 检查是否可以执行
@@ -27,13 +27,13 @@ export interface ICommand {
  * 命令基础实现
  */
 export class Command implements ICommand {
-    private _execute: () => void;
+    private _execute: () => any;
     private _canExecute: () => boolean;
     private _undo?: () => void;
     private _redo?: () => void;
 
     constructor(
-        execute: () => void,
+        execute: () => any,
         canExecute?: () => boolean,
         undo?: () => void,
         redo?: () => void
@@ -47,9 +47,9 @@ export class Command implements ICommand {
     /**
      * 执行命令
      */
-    public execute(): void {
+    public execute(): any {
         if (this.canExecute()) {
-            this._execute();
+            return this._execute();
         }
     }
 
@@ -102,7 +102,7 @@ export interface IAsyncCommand {
     /**
      * 异步执行命令
      */
-    executeAsync(): Promise<void>;
+    executeAsync(): Promise<any>;
 
     /**
      * 检查是否可以执行
@@ -122,7 +122,7 @@ export interface IParameterizedCommand extends ICommand {
     /**
      * 执行带参数的命令
      */
-    execute(...args: any[]): void;
+    execute(...args: any[]): any;
 
     /**
      * 检查是否可以执行
@@ -144,13 +144,13 @@ export interface IParameterizedCommand extends ICommand {
  * 参数化命令实现
  */
 export class ParameterizedCommand implements IParameterizedCommand {
-    private _execute: (...args: any[]) => void;
+    private _execute: (...args: any[]) => any;
     private _canExecute: (...args: any[]) => boolean;
     private _undo?: (...args: any[]) => void;
     private _redo?: (...args: any[]) => void;
 
     constructor(
-        execute: (...args: any[]) => void,
+        execute: (...args: any[]) => any,
         canExecute?: (...args: any[]) => boolean,
         undo?: (...args: any[]) => void,
         redo?: (...args: any[]) => void
@@ -164,9 +164,9 @@ export class ParameterizedCommand implements IParameterizedCommand {
     /**
      * 执行命令
      */
-    public execute(...args: any[]): void {
+    public execute(...args: any[]): any {
         if (this.canExecute(...args)) {
-            this._execute(...args);
+            return this._execute(...args);
         }
     }
 
@@ -219,7 +219,7 @@ export interface IAsyncParameterizedCommand extends ICommand {
     /**
      * 异步执行带参数的命令
      */
-    executeAsync(...args: any[]): Promise<void>;
+    executeAsync(...args: any[]): Promise<any>;
 
     /**
      * 检查是否可以执行
@@ -236,12 +236,12 @@ export interface IAsyncParameterizedCommand extends ICommand {
  * 异步参数化命令实现
  */
 export class AsyncParameterizedCommand implements IAsyncParameterizedCommand {
-    private _execute: (...args: any[]) => Promise<void>;
+    private _execute: (...args: any[]) => Promise<any>;
     private _canExecute: (...args: any[]) => boolean;
     private _isExecuting: boolean = false;
 
     constructor(
-        execute: (...args: any[]) => Promise<void>,
+        execute: (...args: any[]) => Promise<any>,
         canExecute?: (...args: any[]) => boolean
     ) {
         this._execute = execute;
@@ -251,24 +251,25 @@ export class AsyncParameterizedCommand implements IAsyncParameterizedCommand {
     /**
      * 同步执行接口（为了兼容ICommand）
      */
-    public execute(...args: any[]): void {
-        // 对于异步命令，execute方法触发executeAsync但不等待
-        this.executeAsync(...args).catch(error => {
+    public execute(...args: any[]): Promise<any> {
+        // 对于异步命令，execute方法返回Promise
+        return this.executeAsync(...args).catch(error => {
             console.error('异步命令执行出错:', error);
+            throw error;
         });
     }
 
     /**
      * 异步执行命令
      */
-    public async executeAsync(...args: any[]): Promise<void> {
+    public async executeAsync(...args: any[]): Promise<any> {
         if (!this.canExecute(...args)) {
             return;
         }
 
         this._isExecuting = true;
         try {
-            await this._execute(...args);
+            return await this._execute(...args);
         } finally {
             this._isExecuting = false;
         }
@@ -293,12 +294,12 @@ export class AsyncParameterizedCommand implements IAsyncParameterizedCommand {
  * 异步命令实现
  */
 export class AsyncCommand implements IAsyncCommand {
-    private _execute: () => Promise<void>;
+    private _execute: () => Promise<any>;
     private _canExecute: () => boolean;
     private _isExecuting: boolean = false;
 
     constructor(
-        execute: () => Promise<void>,
+        execute: () => Promise<any>,
         canExecute?: () => boolean
     ) {
         this._execute = execute;
@@ -308,24 +309,25 @@ export class AsyncCommand implements IAsyncCommand {
     /**
      * 同步执行接口（为了兼容ICommand）
      */
-    public execute(): void {
-        // 对于异步命令，execute方法触发executeAsync但不等待
-        this.executeAsync().catch(error => {
+    public execute(): Promise<any> {
+        // 对于异步命令，execute方法返回Promise
+        return this.executeAsync().catch(error => {
             console.error('异步命令执行出错:', error);
+            throw error;
         });
     }
 
     /**
      * 异步执行命令
      */
-    public async executeAsync(): Promise<void> {
+    public async executeAsync(): Promise<any> {
         if (!this.canExecute()) {
             return;
         }
 
         this._isExecuting = true;
         try {
-            await this._execute();
+            return await this._execute();
         } finally {
             this._isExecuting = false;
         }

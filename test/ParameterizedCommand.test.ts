@@ -154,9 +154,12 @@ describe('参数化命令测试', () => {
         const savePromise = gameViewModel.executeCommand('saveGameData', saveSlot);
         
         // 验证这是一个Promise
-        expect(savePromise).toBeUndefined(); // executeCommand本身不返回Promise
+        expect(savePromise).toBeInstanceOf(Promise);
         
-        // 但我们可以直接测试命令对象
+        // 等待异步命令完成
+        await savePromise;
+        
+        // 验证命令对象存在
         const command = gameViewModel.getCommand('saveGameData');
         expect(command).toBeDefined();
     });

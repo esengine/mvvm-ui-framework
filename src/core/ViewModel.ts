@@ -2,12 +2,13 @@ import 'reflect-metadata';
 import { Observable } from './Observable';
 import { DecoratorUtils } from './Decorators';
 import { ParameterizedCommand, AsyncParameterizedCommand } from './Command';
+import { FilteredCommandMethods, CommandParameters, CommandReturnType, CommandInfo, NoParamCommands, ParamCommands, TypeSafeCommandExecutor } from './TypeUtils';
 
 /**
  * 命令接口
  */
 export interface ICommand {
-    execute(): void;
+    execute(): any;
     canExecute(): boolean;
 }
 
@@ -15,17 +16,17 @@ export interface ICommand {
  * 命令实现
  */
 export class Command implements ICommand {
-    private executeAction: () => void;
+    private executeAction: () => any;
     private canExecuteAction?: () => boolean;
 
-    constructor(executeAction: () => void, canExecuteAction?: () => boolean) {
+    constructor(executeAction: () => any, canExecuteAction?: () => boolean) {
         this.executeAction = executeAction;
         this.canExecuteAction = canExecuteAction;
     }
 
-    execute(): void {
+    execute(): any {
         if (this.canExecute()) {
-            this.executeAction();
+            return this.executeAction();
         }
     }
 
@@ -38,20 +39,20 @@ export class Command implements ICommand {
  * 异步命令实现
  */
 export class AsyncCommand implements ICommand {
-    private executeAction: () => Promise<void>;
+    private executeAction: () => Promise<any>;
     private canExecuteAction?: () => boolean;
     private isExecuting: boolean = false;
 
-    constructor(executeAction: () => Promise<void>, canExecuteAction?: () => boolean) {
+    constructor(executeAction: () => Promise<any>, canExecuteAction?: () => boolean) {
         this.executeAction = executeAction;
         this.canExecuteAction = canExecuteAction;
     }
 
-    async execute(): Promise<void> {
+    async execute(): Promise<any> {
         if (this.canExecute()) {
             this.isExecuting = true;
             try {
-                await this.executeAction();
+                return await this.executeAction();
             } finally {
                 this.isExecuting = false;
             }
@@ -68,7 +69,7 @@ export class AsyncCommand implements ICommand {
  * ViewModel基类
  * 提供MVVM模式的数据绑定功能
  */
-export abstract class ViewModel extends Observable {
+export abstract class ViewModel extends Observable implements TypeSafeCommandExecutor<ViewModel> {
     private _commands: Map<string, ICommand> = new Map();
     private _validationErrors: Map<string, string> = new Map();
     private _isValidating: boolean = false;
@@ -96,7 +97,7 @@ export abstract class ViewModel extends Observable {
     /**
      * 创建命令
      */
-    public createCommand(name: string, executeAction: () => void, canExecuteAction?: () => boolean): ICommand {
+    public createCommand(name: string, executeAction: () => any, canExecuteAction?: () => boolean): ICommand {
         const command = new Command(executeAction, canExecuteAction);
         this._commands.set(name, command);
         return command;
@@ -105,7 +106,7 @@ export abstract class ViewModel extends Observable {
     /**
      * 创建参数化命令
      */
-    public createParameterizedCommand(name: string, executeAction: (...args: any[]) => void, canExecuteAction?: (...args: any[]) => boolean): ICommand {
+    public createParameterizedCommand(name: string, executeAction: (...args: any[]) => any, canExecuteAction?: (...args: any[]) => boolean): ICommand {
         const command = new ParameterizedCommand(executeAction, canExecuteAction);
         this._commands.set(name, command);
         return command;
@@ -114,7 +115,7 @@ export abstract class ViewModel extends Observable {
     /**
      * 创建异步命令
      */
-    public createAsyncCommand(name: string, executeAction: () => Promise<void>, canExecuteAction?: () => boolean): ICommand {
+    public createAsyncCommand(name: string, executeAction: () => Promise<any>, canExecuteAction?: () => boolean): ICommand {
         const command = new AsyncCommand(executeAction, canExecuteAction);
         this._commands.set(name, command);
         return command;
@@ -123,7 +124,7 @@ export abstract class ViewModel extends Observable {
     /**
      * 创建异步参数化命令
      */
-    public createAsyncParameterizedCommand(name: string, executeAction: (...args: any[]) => Promise<void>, canExecuteAction?: (...args: any[]) => boolean): ICommand {
+    public createAsyncParameterizedCommand(name: string, executeAction: (...args: any[]) => Promise<any>, canExecuteAction?: (...args: any[]) => boolean): ICommand {
         const command = new AsyncParameterizedCommand(executeAction, canExecuteAction);
         this._commands.set(name, command);
         return command;
@@ -137,28 +138,219 @@ export abstract class ViewModel extends Observable {
     }
 
     /**
-     * 执行命令
+     * 执行无参数命令（类型安全）
+     * 
+     * @param name - 命令名称，必须是无参数的命令方法
+     * @returns 命令执行结果
      */
-    public executeCommand(name: string, ...args: any[]): void {
-        const command = this._commands.get(name);
-        if (command) {
-            if (command instanceof ParameterizedCommand || command instanceof AsyncParameterizedCommand) {
-                (command as any).execute(...args);
-            } else if ('execute' in command && typeof command.execute === 'function') {
-                if (args.length > 0) {
-                    console.warn(`命令 ${name} 不支持参数，参数将被忽略`);
-                }
-                (command as any).execute();
+    public executeCommand<K extends FilteredCommandMethods<this> & NoParamCommands<this>>(
+        name: K
+    ): CommandReturnType<this, K>;
+    
+    /**
+     * 执行有参数命令（类型安全）
+     * 
+     * @param name - 命令名称，必须是有参数的命令方法
+     * @param args - 命令参数
+     * @returns 命令执行结果
+     */
+    public executeCommand<K extends FilteredCommandMethods<this> & ParamCommands<this>>(
+        name: K, 
+        ...args: CommandParameters<this, K>
+    ): CommandReturnType<this, K>;
+    
+    /**
+     * 传统字符串方式执行命令（向后兼容）
+     * 
+     * @param name - 命令名称字符串
+     * @param args - 命令参数
+     * @returns void
+     */
+    public executeCommand(name: string, ...args: any[]): void;
+    
+    /**
+     * 执行命令的实现
+     * 
+     * @param name - 命令名称
+     * @param args - 命令参数
+     * @returns 命令执行结果
+     */
+    public executeCommand(name: any, ...args: any[]): any {
+        // 首先检查装饰器注册的命令
+        const registeredCommand = this._commands.get(name);
+        if (registeredCommand) {
+            return this.executeRegisteredCommand(registeredCommand, name, ...args);
+        }
+        
+        // 尝试直接方法调用（类型安全路径）
+        if (typeof name === 'string' && typeof (this as any)[name] === 'function') {
+            return this.executeDirectMethod(name, ...args);
+        }
+        
+        // 命令不存在
+        console.warn(`命令 '${name}' 不存在`);
+    }
+
+    /**
+     * 执行已注册的命令
+     * 
+     * @private
+     * @param command - 命令实例
+     * @param name - 命令名称
+     * @param args - 命令参数
+     * @returns 命令执行结果
+     */
+    private executeRegisteredCommand(command: ICommand, name: string, ...args: any[]): any {
+        const isParameterizedCommand = command instanceof ParameterizedCommand || command instanceof AsyncParameterizedCommand;
+        
+        if (isParameterizedCommand) {
+            // 参数化命令
+            if (!command.canExecute(...args)) {
+                return;
             }
+            return command.execute(...args);
+        } else {
+            // 普通命令
+            if (!command.canExecute()) {
+                return;
+            }
+            
+            if (args.length > 0) {
+                console.warn(`命令 ${name} 不支持参数，参数将被忽略`);
+            }
+            return command.execute();
         }
     }
 
     /**
-     * 检查命令是否可执行
+     * 执行直接方法调用
+     * 
+     * @private
+     * @param name - 方法名
+     * @param args - 方法参数
+     * @returns 方法返回值
      */
-    public canExecuteCommand(name: string): boolean {
+    private executeDirectMethod(name: string, ...args: any[]): any {
+        // 检查是否有对应的canExecute方法
+        const canExecuteMethodName = `can${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+        if (typeof (this as any)[canExecuteMethodName] === 'function') {
+            const canExecuteMethod = (this as any)[canExecuteMethodName];
+            let canExecuteResult: boolean;
+            
+            // 根据canExecute方法是否需要参数来决定调用方式
+            if (canExecuteMethod.length > 0) {
+                canExecuteResult = canExecuteMethod.apply(this, args);
+            } else {
+                canExecuteResult = canExecuteMethod.call(this);
+            }
+            
+            if (!canExecuteResult) {
+                return; // 不执行命令
+            }
+        }
+        
+        // 执行方法并返回结果
+        const method = (this as any)[name];
+        return method.apply(this, args);
+    }
+
+    /**
+     * 检查命令是否可执行（类型安全）
+     * 
+     * @param name - 命令名称，必须是有效的命令方法名
+     * @returns 命令是否可执行
+     */
+    public canExecuteCommand<K extends FilteredCommandMethods<this>>(name: K): boolean;
+    
+    /**
+     * 检查命令是否可执行（传统方式）
+     * 
+     * @param name - 命令名称字符串
+     * @returns 命令是否可执行
+     */
+    public canExecuteCommand(name: string): boolean;
+    
+    /**
+     * 检查命令是否可执行的实现
+     * 
+     * @param name - 命令名称
+     * @returns 命令是否可执行
+     */
+    public canExecuteCommand(name: any): boolean {
         const command = this._commands.get(name);
-        return command ? command.canExecute() : false;
+        if (command) {
+            return command.canExecute();
+        }
+        
+        // 对于直接方法调用，检查是否存在对应的canExecute方法
+        if (typeof (this as any)[name] === 'function') {
+            // 首先检查具体的canXxx方法
+            const canExecuteMethodName = `can${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+            if (typeof (this as any)[canExecuteMethodName] === 'function') {
+                return (this as any)[canExecuteMethodName]();
+            }
+            
+            // 对于conditionalReset这样的命令，可能有canReset方法
+            if (name === 'conditionalReset' && typeof (this as any)['canReset'] === 'function') {
+                return (this as any)['canReset']();
+            }
+            
+            return true; // 默认可执行
+        }
+        
+        return false; // 命令不存在
+    }
+    
+    /**
+     * 获取所有可用命令的信息
+     * 
+     * @returns 命令信息数组，包含命令名称、参数信息和可执行状态
+     */
+    public getCommands(): CommandInfo[] {
+        const commands: CommandInfo[] = [];
+        
+        // 从装饰器注册的命令获取
+        for (const [name, command] of this._commands) {
+            // 尝试从原型获取原始方法来确定参数数量
+            let parameterCount = 0;
+            if (typeof (this as any)[name] === 'function') {
+                parameterCount = (this as any)[name].length;
+            }
+            
+            const info: CommandInfo = {
+                name,
+                hasParameters: command instanceof ParameterizedCommand || command instanceof AsyncParameterizedCommand || parameterCount > 0,
+                isAsync: command instanceof AsyncParameterizedCommand,
+                parameterCount,
+                canExecute: this.canExecuteCommand(name)
+            };
+            commands.push(info);
+        }
+        
+        // 从类原型获取所有方法（用于类型安全的直接调用）
+        const prototype = Object.getPrototypeOf(this);
+        const methodNames = Object.getOwnPropertyNames(prototype);
+        
+        for (const methodName of methodNames) {
+            if (typeof (this as any)[methodName] === 'function' && 
+                !['constructor', 'destroy', 'addObserver', 'removeObserver', 'notifyObservers',
+                  'setProperty', 'getProperty', 'markAsDirty', 'markAsClean', 'name'].includes(methodName) &&
+                !methodName.startsWith('_') &&
+                !commands.find(c => c.name === methodName)) {
+                
+                const method = (this as any)[methodName];
+                const info: CommandInfo = {
+                    name: methodName,
+                    hasParameters: method.length > 0,
+                    isAsync: method.constructor.name === 'AsyncFunction',
+                    parameterCount: method.length,
+                    canExecute: true
+                };
+                commands.push(info);
+            }
+        }
+        
+        return commands;
     }
 
     /**

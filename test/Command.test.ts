@@ -5,10 +5,7 @@ import {
     AsyncParameterizedCommand,
     CompositeCommand, 
     CommandHistory,
-    ICommand,
-    IParameterizedCommand,
-    IAsyncCommand,
-    IAsyncParameterizedCommand
+    ICommand
 } from '../src/core/Command';
 
 describe('Command', () => {
@@ -259,12 +256,10 @@ describe('Command', () => {
                 throw new Error('Test error');
             });
 
-            // 使用同步execute接口，错误会被捕获并记录
-            command.execute('error-test');
+            // 使用execute接口，现在会返回Promise并重新抛出错误
+            await expect(command.execute('error-test')).rejects.toThrow('Test error');
             
-            // 等待错误处理
-            await new Promise(resolve => setTimeout(resolve, 10));
-            
+            // 验证错误日志被记录
             expect(consoleSpy).toHaveBeenCalledWith(
                 '异步命令执行出错:',
                 expect.any(Error)
