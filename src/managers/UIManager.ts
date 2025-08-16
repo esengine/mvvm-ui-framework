@@ -162,6 +162,9 @@ export class UIManager {
     /** UI加载器 */
     private _loader: IUILoader | null = null;
     
+    /** UI根节点 */
+    private _uiRoot: any = null;
+    
     /** 默认配置 */
     private _defaultConfig: Partial<UIConfig> = {
         modal: false,
@@ -192,6 +195,20 @@ export class UIManager {
      */
     public setLoader(loader: IUILoader | null): void {
         this._loader = loader;
+    }
+
+    /**
+     * 设置UI根节点
+     */
+    public setUIRoot(root: any): void {
+        this._uiRoot = root;
+    }
+
+    /**
+     * 获取UI根节点
+     */
+    public getUIRoot(): any {
+        return this._uiRoot;
     }
 
     /**
@@ -451,12 +468,37 @@ export class UIManager {
             return;
         }
 
+        // 检查是否设置了UI根节点
+        if (!this._uiRoot) {
+            throw new Error(`未设置UI根节点，请先调用 setUIRoot() 方法设置UI容器`);
+        }
+
         instance.state = UIState.SHOWING;
         instance.lastAccessTime = Date.now();
 
         try {
             // 触发即将显示事件
             this.emitEvent(UIEvent.WILL_SHOW, instance.config.name, instance);
+
+            // 将UI添加到根节点
+            if (instance.view && this._uiRoot) {
+                // 检查UI根节点是否有addChild方法
+                if (typeof this._uiRoot.addChild === 'function') {
+                    this._uiRoot.addChild(instance.view);
+                } else {
+                    throw new Error('UI根节点不支持addChild方法');
+                }
+
+                // 设置UI层级
+                if (instance.config.layer !== undefined && instance.view.setSiblingIndex) {
+                    instance.view.setSiblingIndex(instance.config.layer);
+                }
+
+                // 确保UI可见
+                if (instance.view.active !== undefined) {
+                    instance.view.active = true;
+                }
+            }
 
             // 执行显示动画
             await this.playShowAnimation(instance);
@@ -492,6 +534,15 @@ export class UIManager {
 
             // 执行隐藏动画
             await this.playHideAnimation(instance);
+
+            // 从UI根节点移除
+            if (instance.view && instance.view.parent) {
+                if (typeof instance.view.removeFromParent === 'function') {
+                    instance.view.removeFromParent();
+                } else if (instance.view.parent && typeof instance.view.parent.removeChild === 'function') {
+                    instance.view.parent.removeChild(instance.view);
+                }
+            }
 
             // 从显示栈移除
             const index = this._showStack.indexOf(instance.config.name);
