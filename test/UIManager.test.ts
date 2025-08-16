@@ -44,7 +44,17 @@ class MockUILoader implements IUILoader {
         const mockView = {
             name: config.name,
             path: config.path,
-            loaded: true
+            loaded: true,
+            active: true,
+            parent: null,
+            removeFromParent: function() {
+                if (this.parent && typeof (this.parent as any).removeChild === 'function') {
+                    (this.parent as any).removeChild(this);
+                }
+            },
+            setSiblingIndex: function(index: number) {
+                // 模拟设置层级
+            }
         };
         
         this.loadedUIs.add(config.name);
@@ -73,6 +83,24 @@ describe('UIManager', () => {
         manager = UIManager.getInstance();
         mockLoader = new MockUILoader();
         manager.setLoader(mockLoader);
+        
+        // 设置模拟UI根节点
+        const mockUIRoot = {
+            name: 'MockUIRoot',
+            children: [] as any[],
+            addChild: function(child: any) {
+                this.children.push(child);
+                child.parent = this;
+            },
+            removeChild: function(child: any) {
+                const index = this.children.indexOf(child);
+                if (index !== -1) {
+                    this.children.splice(index, 1);
+                    child.parent = null;
+                }
+            }
+        };
+        manager.setUIRoot(mockUIRoot);
     });
 
     afterEach(() => {

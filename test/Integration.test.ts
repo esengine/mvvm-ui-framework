@@ -117,7 +117,17 @@ class MockUILoader {
     public async loadUI(config: any): Promise<any> {
         return {
             name: config.name,
-            element: new MockUIElement()
+            element: new MockUIElement(),
+            active: true,
+            parent: null,
+            removeFromParent: function() {
+                if (this.parent && typeof (this.parent as any).removeChild === 'function') {
+                    (this.parent as any).removeChild(this);
+                }
+            },
+            setSiblingIndex: function(index: number) {
+                // 模拟设置层级
+            }
         };
     }
 
@@ -140,6 +150,24 @@ describe('MVVM框架集成测试', () => {
         dataBinding = DataBinding.getInstance();
         uiManager = UIManager.getInstance();
         uiManager.setLoader(new MockUILoader());
+        
+        // 设置模拟UI根节点
+        const mockUIRoot = {
+            name: 'MockUIRoot',
+            children: [] as any[],
+            addChild: function(child: any) {
+                this.children.push(child);
+                child.parent = this;
+            },
+            removeChild: function(child: any) {
+                const index = this.children.indexOf(child);
+                if (index !== -1) {
+                    this.children.splice(index, 1);
+                    child.parent = null;
+                }
+            }
+        };
+        uiManager.setUIRoot(mockUIRoot);
         
         // 清理之前的绑定
         dataBinding.unbindAll();
