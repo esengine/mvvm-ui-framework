@@ -416,31 +416,33 @@ dataBinding.bind(viewModel, uiElement, {
 
 ### UI管理
 
-完整的UI生命周期管理：
+基于装饰器的UI管理系统，支持类型安全操作和可扩展层级：
 
 ```typescript
-import { UIManager, UIConfig, UILayer } from '@esengine/mvvm-ui-framework';
+import { ViewModel, ui, UIOperations, DEFAULT_UI_LAYERS } from '@esengine/mvvm-ui-framework';
 
-// 注册UI配置
-const uiManager = UIManager.getInstance();
-uiManager.registerUI({
+@ui({
     name: 'GamePanel',
     path: 'panels/GamePanel',
     modal: false,
     cacheable: true,
-    layer: UILayer.MAIN
-});
+    layer: DEFAULT_UI_LAYERS.MAIN
+})
+export class GamePanelViewModel extends ViewModel {
+    public get name(): string { return 'GamePanelViewModel'; }
 
-// 显示UI
-const gameViewModel = new GameViewModel();
-const uiInstance = await uiManager.showUI('GamePanel', gameViewModel);
+    @command()
+    public close(): void {
+        UIOperations.closeUI(this);
+    }
+}
 
-// 隐藏UI
-await uiManager.hideUI('GamePanel');
-
-// 关闭UI
-await uiManager.closeUI('GamePanel');
+// 使用
+const gameViewModel = new GamePanelViewModel();
+const uiInstance = await UIOperations.showUI(gameViewModel);
 ```
+
+详细使用指南请参考：[UIManager文档](./docs/UIManager.md)
 
 ### 值转换器
 
@@ -467,7 +469,7 @@ dataBinding.bind(viewModel, uiElement, {
 
 ```typescript
 import { cc } from 'cc';
-import { IUILoader, UIConfig } from '@esengine/mvvm-ui-framework';
+import { IUILoader, UIConfig, uiManager } from '@esengine/mvvm-ui-framework';
 
 class CocosUILoader implements IUILoader {
     async loadUI(config: UIConfig): Promise<cc.Node> {
@@ -491,7 +493,6 @@ class CocosUILoader implements IUILoader {
 }
 
 // 设置UI加载器
-const uiManager = UIManager.getInstance();
 uiManager.setLoader(new CocosUILoader());
 ```
 
@@ -499,7 +500,7 @@ uiManager.setLoader(new CocosUILoader());
 
 ```typescript
 import * as fgui from 'fairygui-cc';
-import { IUILoader, UIConfig } from '@esengine/mvvm-ui-framework';
+import { IUILoader, UIConfig, uiManager } from '@esengine/mvvm-ui-framework';
 
 class FGUILoader implements IUILoader {
     async loadUI(config: UIConfig): Promise<fgui.GComponent> {
@@ -768,9 +769,10 @@ dataBinding.registerTypeSafeConverter('fastFormat', {
 
 ### 3. UI管理策略
 
-- 合理设置UI缓存策略
-- 使用UI层级管理界面显示顺序
-- 及时清理不需要的UI实例
+- 使用装饰器声明UI配置，保持配置集中
+- 利用UILayerRegistry注册自定义层级
+- 通过UIOperations进行类型安全的UI操作
+- 合理设置UI缓存策略和模态属性
 
 ### 4. 性能优化
 

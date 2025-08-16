@@ -186,14 +186,13 @@ export class UIOperations {
     }
 
     /**
-     * 显示指定实例的UI
+     * 显示UI
      */
     public static async showUI<T extends ViewModel>(
-        instance: T, 
-        viewModel?: T, 
+        viewModel: T, 
         userData?: any
     ): Promise<UIInstance<T>> {
-        const config = getUIConfig(instance);
+        const config = getUIConfig(viewModel);
         if (config) {
             return UIManager.getInstance().showUI(config.name, viewModel, userData) as Promise<UIInstance<T>>;
         } else {
