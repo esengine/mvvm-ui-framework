@@ -8,7 +8,6 @@ import {
     BindingType,
     BindingMode,
     UIManager,
-    UILayer,
     createObservable
 } from '../src/index';
 
@@ -318,7 +317,7 @@ describe('MVVM框架集成测试', () => {
             const uiConfig = {
                 name: 'UserProfile',
                 path: 'ui/UserProfile',
-                layer: UILayer.MAIN,
+                layer: 'MAIN',
                 modal: false,
                 cacheable: true
             };

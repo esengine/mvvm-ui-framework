@@ -8,6 +8,15 @@ export { DecoratorUtils } from './core/Decorators';
 // 管理器
 export * from './managers/UIManager';
 import { UIManager } from './managers/UIManager';
+export { 
+    ui, 
+    getUIConfig, 
+    UIOperations, 
+    UILayerRegistry, 
+    DEFAULT_UI_LAYERS,
+    type UILayerValue,
+    type ViewModelConstraint
+} from './managers/UIManager';
 
 // 数据绑定
 export * from './binding/DataBinding';

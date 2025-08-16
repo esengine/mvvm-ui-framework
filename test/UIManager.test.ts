@@ -1,7 +1,7 @@
 import { 
     UIManager, 
     UIConfig, 
-    UILayer, 
+    DEFAULT_UI_LAYERS, 
     UIState, 
     UIEvent,
     IUILoader,
@@ -126,7 +126,7 @@ describe('UIManager', () => {
                 path: 'panels/TestPanel',
                 modal: false,
                 cacheable: true,
-                layer: UILayer.MAIN
+                layer: DEFAULT_UI_LAYERS.MAIN
             };
 
             manager.registerUI(config);
@@ -167,7 +167,7 @@ describe('UIManager', () => {
                 const instance = await manager.showUI('MinimalPanel');
                 expect(instance.config.modal).toBe(false);
                 expect(instance.config.cacheable).toBe(true);
-                expect(instance.config.layer).toBe(UILayer.MAIN);
+                expect(instance.config.layer).toBe(DEFAULT_UI_LAYERS.MAIN);
             }).not.toThrow();
         });
     });

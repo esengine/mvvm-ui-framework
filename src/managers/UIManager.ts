@@ -1,10 +1,16 @@
+import 'reflect-metadata';
 import { ViewModel } from '../core/ViewModel';
 import { IObservable, Observer } from '../core/IObservable';
 
 /**
+ * ViewModel约束类型
+ */
+export type ViewModelConstraint = { new(...args: any[]): ViewModel };
+
+/**
  * UI界面配置
  */
-export interface UIConfig {
+export interface UIConfig<TViewModel extends ViewModel = ViewModel> {
     /** 界面名称 */
     name: string;
     /** 界面路径或标识 */
@@ -13,30 +19,194 @@ export interface UIConfig {
     modal?: boolean;
     /** 是否可以缓存 */
     cacheable?: boolean;
-    /** 界面层级 */
-    layer?: UILayer;
+    /** 界面层级（支持数字或层级名称） */
+    layer?: UILayerValue;
     /** 动画配置 */
     animation?: UIAnimationConfig;
     /** 预加载 */
     preload?: boolean;
+    /** ViewModel类型（用于类型推断） */
+    viewModelType?: ViewModelConstraint;
     /** 自定义数据 */
     data?: any;
 }
 
 /**
- * UI层级枚举
+ * 默认UI层级定义
  */
-export enum UILayer {
+export const DEFAULT_UI_LAYERS = {
     /** 背景层 */
-    BACKGROUND = 0,
+    BACKGROUND: 0,
     /** 主界面层 */
-    MAIN = 100,
+    MAIN: 100,
     /** 弹窗层 */
-    POPUP = 200,
+    POPUP: 200,
     /** 提示层 */
-    TIPS = 300,
+    TIPS: 300,
     /** 顶层 */
-    TOP = 400
+    TOP: 400
+} as const;
+
+/**
+ * UI层级值类型
+ */
+export type UILayerValue = number | string;
+
+/**
+ * UI层级注册管理器
+ */
+export class UILayerRegistry {
+    private static layers = new Map<string, number>(
+        Object.entries(DEFAULT_UI_LAYERS)
+    );
+
+    /**
+     * 注册自定义层级
+     */
+    public static registerLayer(name: string, value: number): void {
+        this.layers.set(name, value);
+    }
+
+    /**
+     * 获取层级值
+     */
+    public static getLayer(name: string): number | undefined {
+        return this.layers.get(name);
+    }
+
+    /**
+     * 解析层级值
+     */
+    public static resolveLayer(layer: UILayerValue): number {
+        if (typeof layer === 'number') {
+            return layer;
+        }
+        const resolvedValue = this.getLayer(layer);
+        if (resolvedValue === undefined) {
+            console.warn(`未找到层级 '${layer}'，使用默认值 ${DEFAULT_UI_LAYERS.MAIN}`);
+            return DEFAULT_UI_LAYERS.MAIN;
+        }
+        return resolvedValue;
+    }
+
+    /**
+     * 获取所有已注册的层级
+     */
+    public static getAllLayers(): Record<string, number> {
+        return Object.fromEntries(this.layers);
+    }
+
+    /**
+     * 清除所有自定义层级（保留默认层级）
+     */
+    public static reset(): void {
+        this.layers.clear();
+        Object.entries(DEFAULT_UI_LAYERS).forEach(([name, value]) => {
+            this.layers.set(name, value);
+        });
+    }
+}
+
+
+/**
+ * UI元数据键
+ */
+const UI_CONFIG_KEY = Symbol('ui:config');
+
+/**
+ * UI装饰器
+ * 用于装饰ViewModel类，声明对应的UI配置
+ */
+export function ui<TViewModel extends ViewModel>(config: UIConfig<TViewModel>) {
+    return function <T extends new (...args: any[]) => TViewModel>(constructor: T) {
+        // 处理层级值
+        const processedConfig = {
+            ...config,
+            layer: config.layer !== undefined ? UILayerRegistry.resolveLayer(config.layer) : DEFAULT_UI_LAYERS.MAIN
+        };
+        
+        // 保存UI配置到元数据
+        Reflect.defineMetadata(UI_CONFIG_KEY, processedConfig, constructor);
+        
+        // 自动注册UI到管理器
+        UIManager.getInstance().registerUI(processedConfig);
+        
+        return constructor;
+    };
+}
+
+/**
+ * 获取ViewModel类的UI配置
+ */
+export function getUIConfig<T extends ViewModel>(target: T): UIConfig<T> | undefined;
+export function getUIConfig(target: any): UIConfig | undefined;
+export function getUIConfig(target: any): UIConfig | undefined {
+    return Reflect.getMetadata(UI_CONFIG_KEY, target.constructor);
+}
+
+/**
+ * UI操作工具类
+ * 为ViewModel提供类型安全的UI操作方法
+ */
+export class UIOperations {
+    /**
+     * 关闭指定实例的UI
+     */
+    public static closeUI<T extends ViewModel>(instance: T): void {
+        const config = getUIConfig(instance);
+        if (config) {
+            UIManager.getInstance().closeUI(config.name).catch(error => {
+                console.error(`关闭UI失败 [${config.name}]:`, error);
+            });
+        } else {
+            console.warn('未找到UI配置，无法关闭UI');
+        }
+    }
+
+    /**
+     * 隐藏指定实例的UI
+     */
+    public static hideUI<T extends ViewModel>(instance: T): void {
+        const config = getUIConfig(instance);
+        if (config) {
+            UIManager.getInstance().hideUI(config.name).catch(error => {
+                console.error(`隐藏UI失败 [${config.name}]:`, error);
+            });
+        } else {
+            console.warn('未找到UI配置，无法隐藏UI');
+        }
+    }
+
+    /**
+     * 检查指定实例的UI是否显示
+     */
+    public static isUIShown<T extends ViewModel>(instance: T): boolean {
+        const config = getUIConfig(instance);
+        return config ? UIManager.getInstance().isUIShown(config.name) : false;
+    }
+
+    /**
+     * 显示指定实例的UI
+     */
+    public static async showUI<T extends ViewModel>(
+        instance: T, 
+        viewModel?: T, 
+        userData?: any
+    ): Promise<UIInstance<T>> {
+        const config = getUIConfig(instance);
+        if (config) {
+            return UIManager.getInstance().showUI(config.name, viewModel, userData) as Promise<UIInstance<T>>;
+        } else {
+            throw new Error('未找到UI配置，无法显示UI');
+        }
+    }
+
+    /**
+     * 获取指定实例的UI配置
+     */
+    public static getConfig<T extends ViewModel>(instance: T): UIConfig<T> | undefined {
+        return getUIConfig(instance) as UIConfig<T> | undefined;
+    }
 }
 
 /**
@@ -80,13 +250,13 @@ export enum UIState {
 /**
  * UI界面实例
  */
-export interface UIInstance {
+export interface UIInstance<TViewModel extends ViewModel = ViewModel> {
     /** 配置 */
-    config: UIConfig;
+    config: UIConfig<TViewModel>;
     /** 状态 */
     state: UIState;
     /** 视图模型 */
-    viewModel?: ViewModel;
+    viewModel?: TViewModel;
     /** 视图对象（由具体UI框架提供） */
     view?: any;
     /** 创建时间 */
@@ -169,7 +339,7 @@ export class UIManager {
     private _defaultConfig: Partial<UIConfig> = {
         modal: false,
         cacheable: true,
-        layer: UILayer.MAIN,
+        layer: DEFAULT_UI_LAYERS.MAIN,
         preload: false
     };
 
