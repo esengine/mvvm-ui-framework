@@ -11,11 +11,16 @@ import { UIManager } from './managers/UIManager';
 export { 
     ui, 
     getUIConfig, 
+    getViewModelByUIName,
+    uiComponent,
+    getUIComponentConfig,
+    getCurrentViewModel,
     UIOperations, 
     UILayerRegistry, 
     DEFAULT_UI_LAYERS,
     type UILayerValue,
-    type ViewModelConstraint
+    type ViewModelConstraint,
+    type UIComponentConfig
 } from './managers/UIManager';
 
 // 数据绑定

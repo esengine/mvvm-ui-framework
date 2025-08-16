@@ -416,7 +416,7 @@ dataBinding.bind(viewModel, uiElement, {
 
 ### UI管理
 
-基于装饰器的UI管理系统，支持类型安全操作和可扩展层级：
+基于装饰器的UI管理系统，支持类型安全操作、可扩展层级和自动组件关联：
 
 ```typescript
 import { ViewModel, ui, UIOperations, DEFAULT_UI_LAYERS } from '@esengine/mvvm-ui-framework';
@@ -434,6 +434,20 @@ export class GamePanelViewModel extends ViewModel {
     @command()
     public close(): void {
         UIOperations.closeUI(this);
+    }
+}
+
+// UI组件自动关联
+import { Component, _decorator } from 'cc';
+import { uiComponent, getCurrentViewModel } from '@esengine/mvvm-ui-framework';
+
+@ccclass('GamePanelUI')
+@uiComponent(GamePanelViewModel)  // 自动关联ViewModel
+export class GamePanelUI extends Component {
+    private _viewModel: GamePanelViewModel | null = null;
+
+    protected onLoad(): void {
+        this._viewModel = getCurrentViewModel<GamePanelViewModel>(this);
     }
 }
 

@@ -145,6 +145,78 @@ export function getUIConfig(target: any): UIConfig | undefined {
 }
 
 /**
+ * 通过UI名称获取对应的ViewModel实例
+ */
+export function getViewModelByUIName<T extends ViewModel = ViewModel>(uiName: string): T | undefined {
+    const manager = UIManager.getInstance();
+    const instance = manager.getUI(uiName);
+    return instance?.viewModel as T | undefined;
+}
+
+/**
+ * UI组件元数据键
+ */
+const UI_COMPONENT_KEY = Symbol('ui:component');
+
+/**
+ * UI组件配置
+ */
+export interface UIComponentConfig {
+    /** 关联的ViewModel类型 */
+    viewModelType: ViewModelConstraint;
+    /** UI名称（可选，默认从ViewModel的@ui装饰器获取） */
+    uiName?: string;
+}
+
+/**
+ * UI组件装饰器
+ * 自动关联ViewModel和UI组件
+ */
+export function uiComponent<TViewModel extends ViewModel>(
+    viewModelClass: new (...args: any[]) => TViewModel,
+    uiName?: string
+) {
+    return function <T extends new (...args: any[]) => any>(constructor: T) {
+        // 获取ViewModel的UI配置
+        const viewModelConfig = Reflect.getMetadata(UI_CONFIG_KEY, viewModelClass);
+        const resolvedUIName = uiName || viewModelConfig?.name;
+        
+        if (!resolvedUIName) {
+            throw new Error(`无法确定UI名称，请在ViewModel上使用@ui装饰器或在@uiComponent中指定uiName`);
+        }
+        
+        const config: UIComponentConfig = {
+            viewModelType: viewModelClass,
+            uiName: resolvedUIName
+        };
+        
+        // 保存配置到元数据
+        Reflect.defineMetadata(UI_COMPONENT_KEY, config, constructor);
+        
+        return constructor;
+    };
+}
+
+/**
+ * 获取UI组件的配置
+ */
+export function getUIComponentConfig(target: any): UIComponentConfig | undefined {
+    return Reflect.getMetadata(UI_COMPONENT_KEY, target.constructor);
+}
+
+/**
+ * 获取当前UI组件对应的ViewModel实例
+ */
+export function getCurrentViewModel<T extends ViewModel = ViewModel>(component: any): T | undefined {
+    const config = getUIComponentConfig(component);
+    if (!config) {
+        return undefined;
+    }
+    
+    return getViewModelByUIName<T>(config.uiName!);
+}
+
+/**
  * UI操作工具类
  * 为ViewModel提供类型安全的UI操作方法
  */
