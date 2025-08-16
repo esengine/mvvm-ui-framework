@@ -416,17 +416,35 @@ dataBinding.bind(viewModel, uiElement, {
 
 ### UI管理
 
-基于装饰器的UI管理系统，支持类型安全操作、可扩展层级和自动组件关联：
+基于装饰器的UI管理系统，支持类型安全操作、接口驱动架构和自动动画：
 
 ```typescript
-import { ViewModel, ui, UIOperations, DEFAULT_UI_LAYERS } from '@esengine/mvvm-ui-framework';
+import { ViewModel, ui, UIOperations, DEFAULT_UI_LAYERS, UIAnimationFunction } from '@esengine/mvvm-ui-framework';
+import { Node, tween, v3 } from 'cc';
 
-@ui({
+// 1. 定义自定义动画
+const elasticScaleIn: UIAnimationFunction<Node> = async (view: Node): Promise<void> => {
+    return new Promise<void>((resolve) => {
+        view.setScale(v3(0, 0, 0));
+        tween(view)
+            .to(0.1, { scale: v3(1.01, 1.01, 1.01) })
+            .to(0.15, { scale: v3(1, 1, 1) })
+            .call(() => resolve())
+            .start();
+    });
+};
+
+// 2. 使用@ui装饰器定义UI配置
+@ui<GamePanelViewModel, Node>({
     name: 'GamePanel',
     path: 'panels/GamePanel',
     modal: false,
     cacheable: true,
-    layer: DEFAULT_UI_LAYERS.MAIN
+    layer: DEFAULT_UI_LAYERS.MAIN,
+    animation: {
+        showAnimation: elasticScaleIn,
+        hideAnimation: scaleOutAnimation
+    }
 })
 export class GamePanelViewModel extends ViewModel {
     public get name(): string { return 'GamePanelViewModel'; }
@@ -437,26 +455,54 @@ export class GamePanelViewModel extends ViewModel {
     }
 }
 
-// UI组件自动关联
-import { Component, _decorator } from 'cc';
-import { uiComponent, getCurrentViewModel } from '@esengine/mvvm-ui-framework';
+// 3. 实现UI渲染器（引擎特定）
+import { IUIRenderer } from '@esengine/mvvm-ui-framework';
 
-@ccclass('GamePanelUI')
-@uiComponent(GamePanelViewModel)  // 自动关联ViewModel
-export class GamePanelUI extends Component {
-    private _viewModel: GamePanelViewModel | null = null;
+export class CocosUIRenderer implements IUIRenderer<Node> {
+    private _uiRoot: Node | null = null;
 
-    protected onLoad(): void {
-        this._viewModel = getCurrentViewModel<GamePanelViewModel>(this);
+    public setUIRoot(root: Node): void {
+        this._uiRoot = root;
+    }
+
+    public getUIRoot(): Node | null {
+        return this._uiRoot;
+    }
+
+    public addUIToParent(view: Node, parent: Node): void {
+        parent.addChild(view);
+    }
+
+    public removeUIFromParent(view: Node): void {
+        if (view.parent) {
+            view.removeFromParent();
+        }
+    }
+
+    public setUILayer(view: Node, layer: number): void {
+        view.setSiblingIndex(layer);
+    }
+
+    public setUIVisible(view: Node, visible: boolean): void {
+        view.active = visible;
     }
 }
 
-// 使用
+// 4. 初始化UI系统
+import { uiManager } from '@esengine/mvvm-ui-framework';
+
+// 设置渲染器
+const renderer = new CocosUIRenderer();
+renderer.setUIRoot(canvas); // 设置UI根节点
+uiManager.setRenderer(renderer);
+
+// 设置加载器
+uiManager.setLoader(new CocosUILoader());
+
+// 5. 使用
 const gameViewModel = new GamePanelViewModel();
 const uiInstance = await UIOperations.showUI(gameViewModel);
 ```
-
-详细使用指南请参考：[UIManager文档](./docs/UIManager.md)
 
 ### 值转换器
 
@@ -482,31 +528,66 @@ dataBinding.bind(viewModel, uiElement, {
 ### Cocos Creator集成
 
 ```typescript
-import { cc } from 'cc';
-import { IUILoader, UIConfig, uiManager } from '@esengine/mvvm-ui-framework';
+import { Node, Prefab, instantiate, resources } from 'cc';
+import { IUILoader, IUIRenderer, UIConfig, uiManager } from '@esengine/mvvm-ui-framework';
 
+// 1. 实现UI加载器
 class CocosUILoader implements IUILoader {
-    async loadUI(config: UIConfig): Promise<cc.Node> {
-        const prefab = await new Promise<cc.Prefab>((resolve, reject) => {
-            cc.resources.load(config.path, cc.Prefab, (err, prefab) => {
+    async loadUI(config: UIConfig): Promise<Node> {
+        const prefab = await new Promise<Prefab>((resolve, reject) => {
+            resources.load(config.path, Prefab, (err, prefab) => {
                 if (err) reject(err);
                 else resolve(prefab);
             });
         });
         
-        return cc.instantiate(prefab);
+        return instantiate(prefab);
     }
 
     async unloadUI(config: UIConfig): Promise<void> {
-        cc.resources.release(config.path);
+        resources.release(config.path);
     }
 
     isLoaded(config: UIConfig): boolean {
-        return cc.resources.get(config.path) !== null;
+        return resources.get(config.path) !== null;
     }
 }
 
-// 设置UI加载器
+// 2. 实现UI渲染器
+class CocosUIRenderer implements IUIRenderer<Node> {
+    private _uiRoot: Node | null = null;
+
+    public setUIRoot(root: Node): void {
+        this._uiRoot = root;
+    }
+
+    public getUIRoot(): Node | null {
+        return this._uiRoot;
+    }
+
+    public addUIToParent(view: Node, parent: Node): void {
+        parent.addChild(view);
+    }
+
+    public removeUIFromParent(view: Node): void {
+        if (view.parent) {
+            view.removeFromParent();
+        }
+    }
+
+    public setUILayer(view: Node, layer: number): void {
+        view.setSiblingIndex(layer);
+    }
+
+    public setUIVisible(view: Node, visible: boolean): void {
+        view.active = visible;
+    }
+}
+
+// 3. 初始化UI系统
+const renderer = new CocosUIRenderer();
+renderer.setUIRoot(canvas); // 设置UI根节点
+uiManager.setRenderer(renderer);
 uiManager.setLoader(new CocosUILoader());
 ```
 
@@ -514,8 +595,9 @@ uiManager.setLoader(new CocosUILoader());
 
 ```typescript
 import * as fgui from 'fairygui-cc';
-import { IUILoader, UIConfig, uiManager } from '@esengine/mvvm-ui-framework';
+import { IUILoader, IUIRenderer, UIConfig, uiManager } from '@esengine/mvvm-ui-framework';
 
+// 1. 实现FGUI加载器
 class FGUILoader implements IUILoader {
     async loadUI(config: UIConfig): Promise<fgui.GComponent> {
         return fgui.UIPackage.createObject(config.path, config.name);
@@ -529,6 +611,45 @@ class FGUILoader implements IUILoader {
         return fgui.UIPackage.getById(config.path) !== null;
     }
 }
+
+// 2. 实现FGUI渲染器
+class FGUIRenderer implements IUIRenderer<fgui.GComponent> {
+    private _uiRoot: fgui.GComponent | null = null;
+
+    public setUIRoot(root: fgui.GComponent): void {
+        this._uiRoot = root;
+    }
+
+    public getUIRoot(): fgui.GComponent | null {
+        return this._uiRoot;
+    }
+
+    public addUIToParent(view: fgui.GComponent, parent: fgui.GComponent): void {
+        parent.addChild(view);
+    }
+
+    public removeUIFromParent(view: fgui.GComponent): void {
+        if (view.parent) {
+            view.parent.removeChild(view);
+        }
+    }
+
+    public setUILayer(view: fgui.GComponent, layer: number): void {
+        if (view.parent) {
+            view.parent.setChildIndex(view, layer);
+        }
+    }
+
+    public setUIVisible(view: fgui.GComponent, visible: boolean): void {
+        view.visible = visible;
+    }
+}
+
+// 3. 初始化FGUI系统
+const fguiRenderer = new FGUIRenderer();
+fguiRenderer.setUIRoot(fgui.GRoot.inst);
+uiManager.setRenderer(fguiRenderer);
+uiManager.setLoader(new FGUILoader());
 ```
 
 ## 最佳实践
@@ -784,9 +905,10 @@ dataBinding.registerTypeSafeConverter('fastFormat', {
 ### 3. UI管理策略
 
 - 使用装饰器声明UI配置，保持配置集中
-- 利用UILayerRegistry注册自定义层级
+- 实现IUIRenderer接口适配不同UI引擎
 - 通过UIOperations进行类型安全的UI操作
 - 合理设置UI缓存策略和模态属性
+- 使用UIAnimationFunction定义类型安全的自定义动画
 
 ### 4. 性能优化
 
