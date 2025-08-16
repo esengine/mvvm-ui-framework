@@ -1,385 +1,7 @@
-import 'reflect-metadata';
 import { ViewModel } from '../core/ViewModel';
-import { IObservable, Observer } from '../core/IObservable';
-
-/**
- * ViewModel约束类型
- */
-export type ViewModelConstraint = { new(...args: any[]): ViewModel };
-
-/**
- * UI界面配置
- */
-export interface UIConfig<TViewModel extends ViewModel = ViewModel> {
-    /** 界面名称 */
-    name: string;
-    /** 界面路径或标识 */
-    path: string;
-    /** 是否为模态窗口 */
-    modal?: boolean;
-    /** 是否可以缓存 */
-    cacheable?: boolean;
-    /** 界面层级（支持数字或层级名称） */
-    layer?: UILayerValue;
-    /** 动画配置 */
-    animation?: UIAnimationConfig;
-    /** 预加载 */
-    preload?: boolean;
-    /** ViewModel类型（用于类型推断） */
-    viewModelType?: ViewModelConstraint;
-    /** 自定义数据 */
-    data?: any;
-}
-
-/**
- * 默认UI层级定义
- */
-export const DEFAULT_UI_LAYERS = {
-    /** 背景层 */
-    BACKGROUND: 0,
-    /** 主界面层 */
-    MAIN: 100,
-    /** 弹窗层 */
-    POPUP: 200,
-    /** 提示层 */
-    TIPS: 300,
-    /** 顶层 */
-    TOP: 400
-} as const;
-
-/**
- * UI层级值类型
- */
-export type UILayerValue = number | string;
-
-/**
- * UI层级注册管理器
- */
-export class UILayerRegistry {
-    private static layers = new Map<string, number>(
-        Object.entries(DEFAULT_UI_LAYERS)
-    );
-
-    /**
-     * 注册自定义层级
-     */
-    public static registerLayer(name: string, value: number): void {
-        this.layers.set(name, value);
-    }
-
-    /**
-     * 获取层级值
-     */
-    public static getLayer(name: string): number | undefined {
-        return this.layers.get(name);
-    }
-
-    /**
-     * 解析层级值
-     */
-    public static resolveLayer(layer: UILayerValue): number {
-        if (typeof layer === 'number') {
-            return layer;
-        }
-        const resolvedValue = this.getLayer(layer);
-        if (resolvedValue === undefined) {
-            console.warn(`未找到层级 '${layer}'，使用默认值 ${DEFAULT_UI_LAYERS.MAIN}`);
-            return DEFAULT_UI_LAYERS.MAIN;
-        }
-        return resolvedValue;
-    }
-
-    /**
-     * 获取所有已注册的层级
-     */
-    public static getAllLayers(): Record<string, number> {
-        return Object.fromEntries(this.layers);
-    }
-
-    /**
-     * 清除所有自定义层级（保留默认层级）
-     */
-    public static reset(): void {
-        this.layers.clear();
-        Object.entries(DEFAULT_UI_LAYERS).forEach(([name, value]) => {
-            this.layers.set(name, value);
-        });
-    }
-}
-
-
-/**
- * UI元数据键
- */
-const UI_CONFIG_KEY = Symbol('ui:config');
-
-/**
- * UI装饰器
- * 用于装饰ViewModel类，声明对应的UI配置
- */
-export function ui<TViewModel extends ViewModel>(config: UIConfig<TViewModel>) {
-    return function <T extends new (...args: any[]) => TViewModel>(constructor: T) {
-        // 处理层级值
-        const processedConfig = {
-            ...config,
-            layer: config.layer !== undefined ? UILayerRegistry.resolveLayer(config.layer) : DEFAULT_UI_LAYERS.MAIN
-        };
-        
-        // 保存UI配置到元数据
-        Reflect.defineMetadata(UI_CONFIG_KEY, processedConfig, constructor);
-        
-        // 自动注册UI到管理器
-        UIManager.getInstance().registerUI(processedConfig);
-        
-        return constructor;
-    };
-}
-
-/**
- * 获取ViewModel类的UI配置
- */
-export function getUIConfig<T extends ViewModel>(target: T): UIConfig<T> | undefined;
-export function getUIConfig(target: any): UIConfig | undefined;
-export function getUIConfig(target: any): UIConfig | undefined {
-    return Reflect.getMetadata(UI_CONFIG_KEY, target.constructor);
-}
-
-/**
- * 通过UI名称获取对应的ViewModel实例
- */
-export function getViewModelByUIName<T extends ViewModel = ViewModel>(uiName: string): T | undefined {
-    const manager = UIManager.getInstance();
-    const instance = manager.getUI(uiName);
-    return instance?.viewModel as T | undefined;
-}
-
-/**
- * UI组件元数据键
- */
-const UI_COMPONENT_KEY = Symbol('ui:component');
-
-/**
- * UI组件配置
- */
-export interface UIComponentConfig {
-    /** 关联的ViewModel类型 */
-    viewModelType: ViewModelConstraint;
-    /** UI名称（可选，默认从ViewModel的@ui装饰器获取） */
-    uiName?: string;
-}
-
-/**
- * UI组件装饰器
- * 自动关联ViewModel和UI组件
- */
-export function uiComponent<TViewModel extends ViewModel>(
-    viewModelClass: new (...args: any[]) => TViewModel,
-    uiName?: string
-) {
-    return function <T extends new (...args: any[]) => any>(constructor: T) {
-        // 获取ViewModel的UI配置
-        const viewModelConfig = Reflect.getMetadata(UI_CONFIG_KEY, viewModelClass);
-        const resolvedUIName = uiName || viewModelConfig?.name;
-        
-        if (!resolvedUIName) {
-            throw new Error(`无法确定UI名称，请在ViewModel上使用@ui装饰器或在@uiComponent中指定uiName`);
-        }
-        
-        const config: UIComponentConfig = {
-            viewModelType: viewModelClass,
-            uiName: resolvedUIName
-        };
-        
-        // 保存配置到元数据
-        Reflect.defineMetadata(UI_COMPONENT_KEY, config, constructor);
-        
-        return constructor;
-    };
-}
-
-/**
- * 获取UI组件的配置
- */
-export function getUIComponentConfig(target: any): UIComponentConfig | undefined {
-    return Reflect.getMetadata(UI_COMPONENT_KEY, target.constructor);
-}
-
-/**
- * 获取当前UI组件对应的ViewModel实例
- */
-export function getCurrentViewModel<T extends ViewModel = ViewModel>(component: any): T | undefined {
-    const config = getUIComponentConfig(component);
-    if (!config) {
-        return undefined;
-    }
-    
-    return getViewModelByUIName<T>(config.uiName!);
-}
-
-/**
- * UI操作工具类
- * 为ViewModel提供类型安全的UI操作方法
- */
-export class UIOperations {
-    /**
-     * 关闭指定实例的UI
-     */
-    public static closeUI<T extends ViewModel>(instance: T): void {
-        const config = getUIConfig(instance);
-        if (config) {
-            UIManager.getInstance().closeUI(config.name).catch(error => {
-                console.error(`关闭UI失败 [${config.name}]:`, error);
-            });
-        } else {
-            console.warn('未找到UI配置，无法关闭UI');
-        }
-    }
-
-    /**
-     * 隐藏指定实例的UI
-     */
-    public static hideUI<T extends ViewModel>(instance: T): void {
-        const config = getUIConfig(instance);
-        if (config) {
-            UIManager.getInstance().hideUI(config.name).catch(error => {
-                console.error(`隐藏UI失败 [${config.name}]:`, error);
-            });
-        } else {
-            console.warn('未找到UI配置，无法隐藏UI');
-        }
-    }
-
-    /**
-     * 检查指定实例的UI是否显示
-     */
-    public static isUIShown<T extends ViewModel>(instance: T): boolean {
-        const config = getUIConfig(instance);
-        return config ? UIManager.getInstance().isUIShown(config.name) : false;
-    }
-
-    /**
-     * 显示UI
-     */
-    public static async showUI<T extends ViewModel>(
-        viewModel: T, 
-        userData?: any
-    ): Promise<UIInstance<T>> {
-        const config = getUIConfig(viewModel);
-        if (config) {
-            return UIManager.getInstance().showUI(config.name, viewModel, userData) as Promise<UIInstance<T>>;
-        } else {
-            throw new Error('未找到UI配置，无法显示UI');
-        }
-    }
-
-    /**
-     * 获取指定实例的UI配置
-     */
-    public static getConfig<T extends ViewModel>(instance: T): UIConfig<T> | undefined {
-        return getUIConfig(instance) as UIConfig<T> | undefined;
-    }
-}
-
-/**
- * UI动画配置
- */
-export interface UIAnimationConfig {
-    /** 显示动画 */
-    showAnimation?: string;
-    /** 隐藏动画 */
-    hideAnimation?: string;
-    /** 动画持续时间 */
-    duration?: number;
-    /** 动画缓动函数 */
-    easing?: string;
-}
-
-/**
- * UI界面状态
- */
-export enum UIState {
-    /** 未加载 */
-    UNLOADED = 'unloaded',
-    /** 加载中 */
-    LOADING = 'loading',
-    /** 已加载 */
-    LOADED = 'loaded',
-    /** 显示中 */
-    SHOWING = 'showing',
-    /** 已显示 */
-    SHOWN = 'shown',
-    /** 隐藏中 */
-    HIDING = 'hiding',
-    /** 已隐藏 */
-    HIDDEN = 'hidden',
-    /** 销毁中 */
-    DESTROYING = 'destroying',
-    /** 已销毁 */
-    DESTROYED = 'destroyed'
-}
-
-/**
- * UI界面实例
- */
-export interface UIInstance<TViewModel extends ViewModel = ViewModel> {
-    /** 配置 */
-    config: UIConfig<TViewModel>;
-    /** 状态 */
-    state: UIState;
-    /** 视图模型 */
-    viewModel?: TViewModel;
-    /** 视图对象（由具体UI框架提供） */
-    view?: any;
-    /** 创建时间 */
-    createTime: number;
-    /** 最后访问时间 */
-    lastAccessTime: number;
-    /** 自定义数据 */
-    userData?: any;
-}
-
-/**
- * UI事件类型
- */
-export enum UIEvent {
-    /** 界面即将显示 */
-    WILL_SHOW = 'will_show',
-    /** 界面已显示 */
-    DID_SHOW = 'did_show',
-    /** 界面即将隐藏 */
-    WILL_HIDE = 'will_hide',
-    /** 界面已隐藏 */
-    DID_HIDE = 'did_hide',
-    /** 界面即将销毁 */
-    WILL_DESTROY = 'will_destroy',
-    /** 界面已销毁 */
-    DID_DESTROY = 'did_destroy'
-}
-
-/**
- * UI事件监听器
- */
-export type UIEventListener = (uiName: string, instance: UIInstance, ...args: any[]) => void;
-
-/**
- * UI加载器接口
- */
-export interface IUILoader {
-    /**
-     * 加载UI资源
-     */
-    loadUI(config: UIConfig): Promise<any>;
-    
-    /**
-     * 卸载UI资源
-     */
-    unloadUI(config: UIConfig): Promise<void>;
-    
-    /**
-     * 检查UI是否已加载
-     */
-    isLoaded(config: UIConfig): boolean;
-}
+import { UIConfig, UIInstance, UIState, UIEvent, UIEventListener } from './types/UITypes';
+import { IUILoader } from './interfaces/IUILoader';
+import { IUIRenderer } from './interfaces/IUIRenderer';
 
 /**
  * UI管理器
@@ -403,15 +25,15 @@ export class UIManager {
     /** UI加载器 */
     private _loader: IUILoader | null = null;
     
-    /** UI根节点 */
-    private _uiRoot: any = null;
+    /** UI渲染器 */
+    private _renderer: IUIRenderer | null = null;
     
     /** 默认配置 */
     private _defaultConfig: Partial<UIConfig> = {
         modal: false,
         cacheable: true,
-        layer: DEFAULT_UI_LAYERS.MAIN,
-        preload: false
+        preload: false,
+        layer: 100 // DEFAULT_UI_LAYERS.MAIN
     };
 
     /**
@@ -439,39 +61,41 @@ export class UIManager {
     }
 
     /**
-     * 设置UI根节点
+     * 设置UI渲染器
      */
-    public setUIRoot(root: any): void {
-        this._uiRoot = root;
+    public setRenderer(renderer: IUIRenderer | null): void {
+        this._renderer = renderer;
     }
 
     /**
-     * 获取UI根节点
+     * 获取UI渲染器
      */
-    public getUIRoot(): any {
-        return this._uiRoot;
+    public getRenderer(): IUIRenderer | null {
+        return this._renderer;
+    }
+
+    /**
+     * 设置UI根节点（兼容旧API）
+     * @deprecated 请使用 setRenderer 和 renderer.setUIRoot
+     */
+    public setUIRoot(root: any): void {
+        console.warn('setUIRoot 已废弃，请使用 setRenderer 和 renderer.setUIRoot');
+        if (this._renderer) {
+            this._renderer.setUIRoot(root);
+        }
     }
 
     /**
      * 注册UI配置
      */
-    public registerUI(config: UIConfig): void {
+    public registerUI<TViewModel extends ViewModel = ViewModel, TView = unknown>(config: UIConfig<TViewModel, TView>): void {
         // 合并默认配置
         const fullConfig = { ...this._defaultConfig, ...config };
-        this._configs.set(config.name, fullConfig);
+        this._configs.set(config.name, fullConfig as UIConfig);
         
         // 如果需要预加载，立即加载
         if (fullConfig.preload) {
             this.preloadUI(config.name);
-        }
-    }
-
-    /**
-     * 批量注册UI配置
-     */
-    public registerUIs(configs: UIConfig[]): void {
-        for (const config of configs) {
-            this.registerUI(config);
         }
     }
 
@@ -556,13 +180,6 @@ export class UIManager {
     }
 
     /**
-     * 检查UI是否存在
-     */
-    public hasUI(uiName: string): boolean {
-        return this._instances.has(uiName);
-    }
-
-    /**
      * 检查UI是否显示
      */
     public isUIShown(uiName: string): boolean {
@@ -596,33 +213,18 @@ export class UIManager {
     }
 
     /**
-     * 关闭所有UI
+     * 检查UI是否存在
      */
-    public async closeAllUIs(): Promise<void> {
-        const promises: Promise<void>[] = [];
-        for (const uiName of this._instances.keys()) {
-            promises.push(this.closeUI(uiName));
-        }
-        await Promise.all(promises);
+    public hasUI(uiName: string): boolean {
+        return this._instances.has(uiName);
     }
 
     /**
-     * 添加事件监听器
+     * 批量注册UI配置
      */
-    public addEventListener(event: UIEvent, listener: UIEventListener): void {
-        const listeners = this._eventListeners.get(event);
-        if (listeners) {
-            listeners.add(listener);
-        }
-    }
-
-    /**
-     * 移除事件监听器
-     */
-    public removeEventListener(event: UIEvent, listener: UIEventListener): void {
-        const listeners = this._eventListeners.get(event);
-        if (listeners) {
-            listeners.delete(listener);
+    public registerUIs(configs: UIConfig[]): void {
+        for (const config of configs) {
+            this.registerUI(config);
         }
     }
 
@@ -663,6 +265,38 @@ export class UIManager {
         }
         
         this._loader = null;
+        this._renderer = null;
+    }
+
+    /**
+     * 关闭所有UI
+     */
+    public async closeAllUIs(): Promise<void> {
+        const promises: Promise<void>[] = [];
+        for (const uiName of this._instances.keys()) {
+            promises.push(this.closeUI(uiName));
+        }
+        await Promise.all(promises);
+    }
+
+    /**
+     * 添加事件监听器
+     */
+    public addEventListener(event: UIEvent, listener: UIEventListener): void {
+        const listeners = this._eventListeners.get(event);
+        if (listeners) {
+            listeners.add(listener);
+        }
+    }
+
+    /**
+     * 移除事件监听器
+     */
+    public removeEventListener(event: UIEvent, listener: UIEventListener): void {
+        const listeners = this._eventListeners.get(event);
+        if (listeners) {
+            listeners.delete(listener);
+        }
     }
 
     /**
@@ -709,9 +343,14 @@ export class UIManager {
             return;
         }
 
-        // 检查是否设置了UI根节点
-        if (!this._uiRoot) {
-            throw new Error(`未设置UI根节点，请先调用 setUIRoot() 方法设置UI容器`);
+        // 检查是否设置了渲染器
+        if (!this._renderer) {
+            throw new Error(`未设置UI渲染器，请先调用 setRenderer() 方法设置UI渲染器`);
+        }
+
+        const uiRoot = this._renderer.getUIRoot();
+        if (!uiRoot) {
+            throw new Error(`UI渲染器未设置根节点，请先调用 renderer.setUIRoot() 方法`);
         }
 
         instance.state = UIState.SHOWING;
@@ -721,24 +360,21 @@ export class UIManager {
             // 触发即将显示事件
             this.emitEvent(UIEvent.WILL_SHOW, instance.config.name, instance);
 
-            // 将UI添加到根节点
-            if (instance.view && this._uiRoot) {
-                // 检查UI根节点是否有addChild方法
-                if (typeof this._uiRoot.addChild === 'function') {
-                    this._uiRoot.addChild(instance.view);
-                } else {
-                    throw new Error('UI根节点不支持addChild方法');
-                }
+            // 使用渲染器显示UI
+            if (instance.view) {
+                // 将UI添加到父节点
+                this._renderer.addUIToParent(instance.view, uiRoot);
 
                 // 设置UI层级
-                if (instance.config.layer !== undefined && instance.view.setSiblingIndex) {
-                    instance.view.setSiblingIndex(instance.config.layer);
+                if (instance.config.layer !== undefined) {
+                    const layerNumber = typeof instance.config.layer === 'number' 
+                        ? instance.config.layer 
+                        : 0; // 默认层级，实际上应该已经在装饰器中处理过了
+                    this._renderer.setUILayer(instance.view, layerNumber);
                 }
 
-                // 确保UI可见
-                if (instance.view.active !== undefined) {
-                    instance.view.active = true;
-                }
+                // 设置UI可见
+                this._renderer.setUIVisible(instance.view, true);
             }
 
             // 执行显示动画
@@ -776,13 +412,9 @@ export class UIManager {
             // 执行隐藏动画
             await this.playHideAnimation(instance);
 
-            // 从UI根节点移除
-            if (instance.view && instance.view.parent) {
-                if (typeof instance.view.removeFromParent === 'function') {
-                    instance.view.removeFromParent();
-                } else if (instance.view.parent && typeof instance.view.parent.removeChild === 'function') {
-                    instance.view.parent.removeChild(instance.view);
-                }
+            // 使用渲染器隐藏UI
+            if (instance.view && this._renderer) {
+                this._renderer.removeUIFromParent(instance.view);
             }
 
             // 从显示栈移除
@@ -847,12 +479,12 @@ export class UIManager {
      * 播放显示动画
      */
     private async playShowAnimation(instance: UIInstance): Promise<void> {
-        // 这里可以集成具体的动画系统
-        // 默认实现为空，由具体的UI框架实现
         const animation = instance.config.animation;
         if (animation && animation.showAnimation) {
-            // 播放显示动画
-            await this.delay(animation.duration || 300);
+            if (typeof animation.showAnimation === 'function') {
+                // 使用自定义动画函数
+                await animation.showAnimation(instance.view);
+            }
         }
     }
 
@@ -860,12 +492,12 @@ export class UIManager {
      * 播放隐藏动画
      */
     private async playHideAnimation(instance: UIInstance): Promise<void> {
-        // 这里可以集成具体的动画系统
-        // 默认实现为空，由具体的UI框架实现
         const animation = instance.config.animation;
         if (animation && animation.hideAnimation) {
-            // 播放隐藏动画
-            await this.delay(animation.duration || 300);
+            if (typeof animation.hideAnimation === 'function') {
+                // 使用自定义动画函数
+                await animation.hideAnimation(instance.view);
+            }
         }
     }
 
@@ -884,16 +516,9 @@ export class UIManager {
             }
         }
     }
-
-    /**
-     * 延迟执行
-     */
-    private delay(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
 }
 
 /**
  * 全局UI管理器实例
  */
-export const uiManager = UIManager.getInstance(); 
+export const uiManager = UIManager.getInstance();

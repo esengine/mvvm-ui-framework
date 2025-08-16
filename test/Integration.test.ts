@@ -166,7 +166,24 @@ describe('MVVM框架集成测试', () => {
                 }
             }
         };
-        uiManager.setUIRoot(mockUIRoot);
+        // 创建模拟渲染器
+        const mockRenderer = {
+            _root: mockUIRoot,
+            setUIRoot: function(root: any) { this._root = root; },
+            getUIRoot: () => mockUIRoot,
+            addUIToParent: (view: any, parent: any) => { parent.children.push(view); view.parent = parent; },
+            removeUIFromParent: (view: any) => { 
+                if (view.parent) {
+                    const index = view.parent.children.indexOf(view);
+                    if (index !== -1) view.parent.children.splice(index, 1);
+                    view.parent = null;
+                }
+            },
+            setUILayer: (view: any, layer: number) => { view.layer = layer; },
+            setUIVisible: (view: any, visible: boolean) => { view.visible = visible; }
+        };
+        
+        uiManager.setRenderer(mockRenderer);
         
         // 清理之前的绑定
         dataBinding.unbindAll();

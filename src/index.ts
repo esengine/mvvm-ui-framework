@@ -6,22 +6,8 @@ export * from './core/Decorators';
 export { DecoratorUtils } from './core/Decorators';
 
 // 管理器
-export * from './managers/UIManager';
-import { UIManager } from './managers/UIManager';
-export { 
-    ui, 
-    getUIConfig, 
-    getViewModelByUIName,
-    uiComponent,
-    getUIComponentConfig,
-    getCurrentViewModel,
-    UIOperations, 
-    UILayerRegistry, 
-    DEFAULT_UI_LAYERS,
-    type UILayerValue,
-    type ViewModelConstraint,
-    type UIComponentConfig
-} from './managers/UIManager';
+export * from './managers';
+import { UIManager, uiManager } from './managers/UIManager';
 
 // 数据绑定
 export * from './binding/DataBinding';
@@ -33,7 +19,7 @@ export * from './binding/FluentBindingBuilder';
 export const VERSION = '1.0.0';
 
 // 默认导出
-export { UIManager, uiManager } from './managers/UIManager';
+export { UIManager, uiManager };
 export { DataBinding, dataBinding } from './binding/DataBinding';
 export { Observable, createObservable } from './core/Observable';
 export { ViewModel } from './core/ViewModel';

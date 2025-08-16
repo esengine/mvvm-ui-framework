@@ -6,7 +6,7 @@ import {
     UIEvent,
     IUILoader,
     uiManager
-} from '../src/managers/UIManager';
+} from '../src/managers';
 import { ViewModel } from '../src/core/ViewModel';
 
 // 测试用的ViewModel
@@ -100,7 +100,27 @@ describe('UIManager', () => {
                 }
             }
         };
-        manager.setUIRoot(mockUIRoot);
+        // 创建模拟渲染器
+        const mockRenderer = {
+            _root: mockUIRoot,
+            setUIRoot: function(root: any) { this._root = root; },
+            getUIRoot: () => mockUIRoot,
+            addUIToParent: (view: any, parent: any) => { 
+                parent.children.push(view); 
+                view.parent = parent; 
+            },
+            removeUIFromParent: (view: any) => { 
+                if (view.parent) {
+                    const index = view.parent.children.indexOf(view);
+                    if (index !== -1) view.parent.children.splice(index, 1);
+                    view.parent = null;
+                }
+            },
+            setUILayer: (view: any, layer: number) => { view.layer = layer; },
+            setUIVisible: (view: any, visible: boolean) => { view.visible = visible; }
+        };
+        
+        manager.setRenderer(mockRenderer);
     });
 
     afterEach(() => {
@@ -426,7 +446,7 @@ describe('UIManager', () => {
             const instance = await manager.showUI('LoaderTest');
 
             expect(instance.view).toBeDefined();
-            expect(instance.view.name).toBe('LoaderTest');
+            expect((instance.view as any).name).toBe('LoaderTest');
             expect(mockLoader.isLoaded(loaderConfig)).toBe(true);
         });
 
